@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CloudMart Data Stack Test
+Description: CloudMart RDS Data Stack
 
 Parameters:
 
@@ -16,36 +16,6 @@ Parameters:
     NoEcho: true
 
 Resources:
-
-  OrdersTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: CloudMartOrders-dev
-      BillingMode: PAY_PER_REQUEST
-
-      AttributeDefinitions:
-        - AttributeName: OrderId
-          AttributeType: S
-        - AttributeName: CustomerId
-          AttributeType: S
-
-      KeySchema:
-        - AttributeName: OrderId
-          KeyType: HASH
-
-      GlobalSecondaryIndexes:
-        - IndexName: CustomerIndex
-          KeySchema:
-            - AttributeName: CustomerId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  LambdaArtifactsBucket:
-    Type: AWS::S3::Bucket
-
-  ReportsBucket:
-    Type: AWS::S3::Bucket
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -82,10 +52,19 @@ Resources:
       VPCSecurityGroups:
         - Fn::ImportValue: CloudMart-dev-RDSSecurityGroupId
 
-      BackupRetentionPeriod: 0
+      BackupRetentionPeriod: 7
       DeletionProtection: false
 
 Outputs:
 
+  DBIdentifier:
+    Description: RDS Instance Identifier
+    Value: !Ref CloudMartDB
+
   DBEndpoint:
+    Description: RDS Endpoint
     Value: !GetAtt CloudMartDB.Endpoint.Address
+
+  DBPort:
+    Description: RDS Port
+    Value: !GetAtt CloudMartDB.Endpoint.Port
