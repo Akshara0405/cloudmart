@@ -114,3 +114,4 @@ jobs:
           aws cloudformation describe-stack-events \
             --stack-name cloudmart-dev-data \
             --region ap-south-1
+        

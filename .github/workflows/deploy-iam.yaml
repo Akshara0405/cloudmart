@@ -1,0 +1,53 @@
+name: Deploy CloudMart IAM Stack
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ENVIRONMENT: dev
+  STACK_NAME: cloudmart-dev-iam
+
+jobs:
+  deploy-iam:
+    name: Deploy IAM Stack
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+
+      - name: Validate IAM CloudFormation template
+        run: |
+          aws cloudformation validate-template \
+            --template-body file://cloudformation/iam-stack.yaml \
+            --region $AWS_REGION
+
+      - name: Deploy IAM Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file cloudformation/iam-stack.yaml \
+            --stack-name $STACK_NAME \
+            --region $AWS_REGION \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              Environment=$ENVIRONMENT
+
+      - name: Display IAM Stack Outputs
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --region $AWS_REGION \
+            --query "Stacks[0].Outputs" \
+            --output table

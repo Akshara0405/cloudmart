@@ -1,0 +1,122 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: CloudMart IAM Stack
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+Resources:
+
+  AuthorizerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub CloudMart-${Environment}-Authorizer-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  ApplicationLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub CloudMart-${Environment}-Application-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  OrderProcessorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub CloudMart-${Environment}-OrderProcessor-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  InventoryAlertLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub CloudMart-${Environment}-InventoryAlert-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  ReportLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub CloudMart-${Environment}-Report-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+Outputs:
+
+  AuthorizerLambdaRoleArn:
+    Value: !GetAtt AuthorizerLambdaRole.Arn
+    Export:
+      Name: !Sub CloudMart-${Environment}-AuthorizerLambdaRoleArn
+
+  ApplicationLambdaRoleArn:
+    Value: !GetAtt ApplicationLambdaRole.Arn
+    Export:
+      Name: !Sub CloudMart-${Environment}-ApplicationLambdaRoleArn
+
+  OrderProcessorLambdaRoleArn:
+    Value: !GetAtt OrderProcessorLambdaRole.Arn
+    Export:
+      Name: !Sub CloudMart-${Environment}-OrderProcessorLambdaRoleArn
+
+  InventoryAlertLambdaRoleArn:
+    Value: !GetAtt InventoryAlertLambdaRole.Arn
+    Export:
+      Name: !Sub CloudMart-${Environment}-InventoryAlertLambdaRoleArn
+
+  ReportLambdaRoleArn:
+    Value: !GetAtt ReportLambdaRole.Arn
+    Export:
+      Name: !Sub CloudMart-${Environment}-ReportLambdaRoleArn
