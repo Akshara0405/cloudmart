@@ -115,7 +115,7 @@ Resources:
 
       Engine: mysql
 
-      EngineVersion: '8.0'
+      EngineVersion: '8.0.46'
 
       DBInstanceClass:
         !Ref DBInstanceClass
@@ -130,10 +130,9 @@ Resources:
       DBName:
         !Ref DBName
 
-      MasterUsername:
-        !Ref DBUsername
+      MasterUsername: !Ref DBUsername
 
-      ManageMasterUserPassword: true
+      ManageMasterUserPassword: CloudMart123!
 
       Port: 3306
 
