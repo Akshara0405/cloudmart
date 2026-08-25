@@ -26,7 +26,7 @@ Parameters:
 
   MasterUsername:
     Type: String
-    Default: admin
+    NoEcho: true
 
   MasterUserPassword:
     Type: String
