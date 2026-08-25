@@ -91,17 +91,15 @@ jobs:
 
       - name: Deploy Data Stack
         run: |
-          aws cloudformation deploy \
-            --template-file cloudformation/data-stack.yaml \
+            aws cloudformation deploy \
+            --template-file cloudformation/data-stack.yml \
             --stack-name cloudmart-dev-data \
+            --region ap-south-1 \
             --parameter-overrides \
-              Environment=dev \
-              DBName=cloudmart \
-              DBUsername="${{ secrets.DB_USERNAME }}" \
-              DBPassword="${{ secrets.DB_PASSWORD }}" \
-              DBInstanceClass=db.t3.micro \
-              AllocatedStorage=20 \
-            --region ap-south-1
+                Environment=dev \
+                MasterUsername="${{ secrets.DB_USERNAME }}" \
+                MasterUserPassword="${{ secrets.DB_PASSWORD }}" \
+            --no-fail-on-empty-changeset
 
       - name: Check Data Stack Status
         if: always()
