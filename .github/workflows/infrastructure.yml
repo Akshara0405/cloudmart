@@ -1,47 +1,40 @@
-name: CloudMart Infrastructure
-
+name: Test AWS Access
+ 
+ 
 on:
+ 
   workflow_dispatch:
-
+ 
+ 
 permissions:
+ 
   id-token: write
+ 
   contents: read
-
+ 
+ 
 jobs:
-
-  deploy-network:
+ 
+  test:
+ 
     runs-on: ubuntu-latest
-
+ 
+ 
     steps:
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+ 
+      - uses: actions/checkout@v4
+ 
+ 
+      - uses: aws-actions/configure-aws-credentials@v4
+ 
         with:
+ 
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+ 
           aws-region: ap-south-1
-
-      - name: Verify AWS access
-        run: |
-          aws sts get-caller-identity
-
-      - name: Validate CloudFormation template
-        run: |
-          aws cloudformation validate-template \
-            --template-body file://cloudformation/network-stack.yaml
-
-      - name: Deploy Network Stack
-        run: |
-          aws cloudformation deploy \
-            --template-file cloudformation/network-stack.yaml \
-            --stack-name cloudmart-dev-network \
-            --parameter-overrides Environment=dev \
-            --region ap-south-1
-
-      - name: Check Stack Status
-        run: |
-          aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-network \
-            --region ap-south-1
+ 
+ 
+      - run: aws sts get-caller-identity
+     
+ 
+ 
