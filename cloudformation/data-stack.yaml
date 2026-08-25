@@ -8,6 +8,10 @@ Description: >
 
 Parameters:
 
+  # ============================================================
+  # ENVIRONMENT
+  # ============================================================
+
   Environment:
     Type: String
     Default: dev
@@ -16,10 +20,22 @@ Parameters:
       - prod
     Description: Environment name.
 
+
+  # ============================================================
+  # DATABASE NAME
+  # ============================================================
+
   DBName:
     Type: String
     Default: cloudmart
     Description: CloudMart RDS database name.
+
+
+  # ============================================================
+  # DATABASE USERNAME
+  # Password is NOT supplied through GitHub.
+  # AWS Secrets Manager manages the RDS master password.
+  # ============================================================
 
   DBUsername:
     Type: String
@@ -27,16 +43,20 @@ Parameters:
     NoEcho: true
     Description: RDS master username.
 
-  DBPassword:
-    Type: String
-    NoEcho: true
-    MinLength: 12
-    Description: RDS master password.
+
+  # ============================================================
+  # RDS INSTANCE CLASS
+  # ============================================================
 
   DBInstanceClass:
     Type: String
     Default: db.t3.micro
     Description: RDS instance class.
+
+
+  # ============================================================
+  # RDS STORAGE
+  # ============================================================
 
   AllocatedStorage:
     Type: Number
@@ -49,19 +69,25 @@ Resources:
   # ============================================================
   # RDS DB SUBNET GROUP
   #
-  # RDS requires subnets in at least two Availability Zones.
-  # This does NOT make the database Multi-AZ.
-  # The RDS instance remains Single-AZ.
+  # RDS requires a DB subnet group containing subnets from
+  # at least two Availability Zones.
+  #
+  # IMPORTANT:
+  # This does NOT make the RDS instance Multi-AZ.
+  # The actual RDS instance remains Single-AZ.
   # ============================================================
 
   CloudMartDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+
     Properties:
+
       DBSubnetGroupDescription: >
         CloudMart RDS subnet group using two private subnets
         across different Availability Zones.
 
       SubnetIds:
+
         - Fn::ImportValue:
             Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
 
@@ -75,10 +101,16 @@ Resources:
 
   # ============================================================
   # RDS MYSQL DATABASE
+  #
+  # Single-AZ deployment.
+  #
+  # AWS Secrets Manager automatically manages the master
+  # database password.
   # ============================================================
 
   CloudMartRDS:
     Type: AWS::RDS::DBInstance
+
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
 
@@ -107,19 +139,22 @@ Resources:
       MasterUsername:
         !Ref DBUsername
 
-      MasterUserPassword:
-        !Ref DBPassword
+      # AWS automatically creates and manages the
+      # master password in AWS Secrets Manager.
+      ManageMasterUserPassword: true
 
       Port: 3306
 
       PubliclyAccessible: false
 
+      # Keep RDS Single-AZ as required by the architecture.
       MultiAZ: false
 
       DBSubnetGroupName:
         !Ref CloudMartDBSubnetGroup
 
       VPCSecurityGroups:
+
         - Fn::ImportValue:
             Fn::Sub: CloudMart-${Environment}-RDSSecurityGroupId
 
@@ -145,6 +180,7 @@ Resources:
 
   CloudMartS3Bucket:
     Type: AWS::S3::Bucket
+
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
@@ -156,13 +192,19 @@ Resources:
       AccessControl: Private
 
       PublicAccessBlockConfiguration:
+
         BlockPublicAcls: true
+
         BlockPublicPolicy: true
+
         IgnorePublicAcls: true
+
         RestrictPublicBuckets: true
 
       BucketEncryption:
+
         ServerSideEncryptionConfiguration:
+
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
 
@@ -177,17 +219,18 @@ Resources:
   # ============================================================
   # SSM PARAMETERS
   #
-  # These parameters provide database configuration to the
+  # These parameters provide database configuration to
   # application Lambdas.
   #
-  # The actual DB password is NOT stored in the template's
-  # SSM parameters.
+  # The database password is NOT stored here.
+  # RDS master password is managed by Secrets Manager.
   # ============================================================
 
   DBHostParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/database/host
 
@@ -204,10 +247,15 @@ Resources:
         Application: CloudMart
 
 
+  # ============================================================
+  # DB PORT PARAMETER
+  # ============================================================
+
   DBPortParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/database/port
 
@@ -223,10 +271,15 @@ Resources:
         Application: CloudMart
 
 
+  # ============================================================
+  # DB NAME PARAMETER
+  # ============================================================
+
   DBNameParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/database/name
 
@@ -243,10 +296,15 @@ Resources:
         Application: CloudMart
 
 
+  # ============================================================
+  # DB USERNAME PARAMETER
+  # ============================================================
+
   DBUsernameParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/database/username
 
@@ -273,6 +331,7 @@ Resources:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/storage/bucket
 
@@ -295,12 +354,14 @@ Resources:
 
 Outputs:
 
-  # ------------------------------------------------------------
-  # RDS
-  # ------------------------------------------------------------
+
+  # ============================================================
+  # RDS INSTANCE
+  # ============================================================
 
   RDSInstanceIdentifier:
     Description: CloudMart RDS instance identifier
+
     Value:
       !Ref CloudMartRDS
 
@@ -309,8 +370,13 @@ Outputs:
         !Sub CloudMart-${Environment}-RDSInstanceIdentifier
 
 
+  # ============================================================
+  # RDS ENDPOINT
+  # ============================================================
+
   RDSEndpoint:
     Description: CloudMart RDS MySQL endpoint
+
     Value:
       !GetAtt CloudMartRDS.Endpoint.Address
 
@@ -319,8 +385,13 @@ Outputs:
         !Sub CloudMart-${Environment}-RDSEndpoint
 
 
+  # ============================================================
+  # RDS PORT
+  # ============================================================
+
   RDSPort:
     Description: CloudMart RDS MySQL port
+
     Value:
       !GetAtt CloudMartRDS.Endpoint.Port
 
@@ -329,8 +400,13 @@ Outputs:
         !Sub CloudMart-${Environment}-RDSPort
 
 
+  # ============================================================
+  # DATABASE NAME
+  # ============================================================
+
   DBName:
     Description: CloudMart database name
+
     Value:
       !Ref DBName
 
@@ -339,8 +415,13 @@ Outputs:
         !Sub CloudMart-${Environment}-DBName
 
 
+  # ============================================================
+  # DB SUBNET GROUP
+  # ============================================================
+
   DBSubnetGroupName:
     Description: CloudMart RDS DB subnet group
+
     Value:
       !Ref CloudMartDBSubnetGroup
 
@@ -349,12 +430,13 @@ Outputs:
         !Sub CloudMart-${Environment}-DBSubnetGroupName
 
 
-  # ------------------------------------------------------------
-  # S3
-  # ------------------------------------------------------------
+  # ============================================================
+  # S3 BUCKET NAME
+  # ============================================================
 
   S3BucketName:
     Description: CloudMart private S3 bucket
+
     Value:
       !Ref CloudMartS3Bucket
 
@@ -363,8 +445,13 @@ Outputs:
         !Sub CloudMart-${Environment}-S3BucketName
 
 
+  # ============================================================
+  # S3 BUCKET ARN
+  # ============================================================
+
   S3BucketArn:
     Description: CloudMart S3 bucket ARN
+
     Value:
       !GetAtt CloudMartS3Bucket.Arn
 
@@ -373,12 +460,13 @@ Outputs:
         !Sub CloudMart-${Environment}-S3BucketArn
 
 
-  # ------------------------------------------------------------
-  # SSM
-  # ------------------------------------------------------------
+  # ============================================================
+  # SSM - DB HOST
+  # ============================================================
 
   DBHostParameterName:
     Description: SSM parameter containing RDS endpoint
+
     Value:
       !Sub /cloudmart/${Environment}/database/host
 
@@ -387,8 +475,13 @@ Outputs:
         !Sub CloudMart-${Environment}-DBHostParameter
 
 
+  # ============================================================
+  # SSM - DB PORT
+  # ============================================================
+
   DBPortParameterName:
     Description: SSM parameter containing RDS port
+
     Value:
       !Sub /cloudmart/${Environment}/database/port
 
@@ -397,8 +490,13 @@ Outputs:
         !Sub CloudMart-${Environment}-DBPortParameter
 
 
+  # ============================================================
+  # SSM - DB NAME
+  # ============================================================
+
   DBNameParameterName:
     Description: SSM parameter containing database name
+
     Value:
       !Sub /cloudmart/${Environment}/database/name
 
@@ -407,8 +505,13 @@ Outputs:
         !Sub CloudMart-${Environment}-DBNameParameter
 
 
+  # ============================================================
+  # SSM - DB USERNAME
+  # ============================================================
+
   DBUsernameParameterName:
     Description: SSM parameter containing database username
+
     Value:
       !Sub /cloudmart/${Environment}/database/username
 
@@ -417,8 +520,13 @@ Outputs:
         !Sub CloudMart-${Environment}-DBUsernameParameter
 
 
+  # ============================================================
+  # SSM - S3 BUCKET
+  # ============================================================
+
   S3BucketParameterName:
     Description: SSM parameter containing S3 bucket name
+
     Value:
       !Sub /cloudmart/${Environment}/storage/bucket
 
