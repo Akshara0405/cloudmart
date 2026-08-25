@@ -1,6 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudMart Data Stack Test
 
+Parameters:
+
+  DBName:
+    Type: String
+    Default: cloudmart
+
+  DBUsername:
+    Type: String
+    Default: admin
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+
 Resources:
 
   OrdersTable:
@@ -30,6 +44,9 @@ Resources:
   LambdaArtifactsBucket:
     Type: AWS::S3::Bucket
 
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -38,5 +55,37 @@ Resources:
         - Fn::ImportValue: CloudMart-dev-PrivateSubnetId
         - Fn::ImportValue: CloudMart-dev-PrivateSubnet2Id
 
-  ReportsBucket:
-    Type: AWS::S3::Bucket
+  CloudMartDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: cloudmart-db
+
+      Engine: mysql
+      EngineVersion: "8.0.46"
+
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+
+      StorageType: gp3
+      StorageEncrypted: true
+
+      PubliclyAccessible: false
+      MultiAZ: false
+
+      DBName: !Ref DBName
+
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+
+      DBSubnetGroupName: !Ref DBSubnetGroup
+
+      VPCSecurityGroups:
+        - Fn::ImportValue: CloudMart-dev-RDSSecurityGroupId
+
+      BackupRetentionPeriod: 0
+      DeletionProtection: false
+
+Outputs:
+
+  DBEndpoint:
+    Value: !GetAtt CloudMartDB.Endpoint.Address
