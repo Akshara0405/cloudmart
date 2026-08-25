@@ -2,11 +2,14 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: >
   CloudMart Data Stack.
-  Creates the RDS MySQL database, DB subnet group, S3 bucket,
-  and SSM Parameter Store configuration required by the
-  approved CloudMart architecture.
+  Creates RDS MySQL, DynamoDB Orders table, S3 storage,
+  and SSM Parameter Store configuration.
 
 Parameters:
+
+  # ============================================================
+  # ENVIRONMENT
+  # ============================================================
 
   Environment:
     Type: String
@@ -16,10 +19,20 @@ Parameters:
       - prod
     Description: Environment name.
 
+
+  # ============================================================
+  # DATABASE NAME
+  # ============================================================
+
   DBName:
     Type: String
     Default: cloudmart
     Description: CloudMart RDS database name.
+
+
+  # ============================================================
+  # DATABASE USERNAME
+  # ============================================================
 
   DBUsername:
     Type: String
@@ -27,10 +40,20 @@ Parameters:
     NoEcho: true
     Description: RDS master username.
 
+
+  # ============================================================
+  # RDS INSTANCE CLASS
+  # ============================================================
+
   DBInstanceClass:
     Type: String
     Default: db.t3.micro
     Description: RDS instance class.
+
+
+  # ============================================================
+  # RDS STORAGE
+  # ============================================================
 
   AllocatedStorage:
     Type: Number
@@ -43,7 +66,9 @@ Resources:
   # ============================================================
   # RDS DB SUBNET GROUP
   #
-  # Uses two private subnets in different Availability Zones.
+  # Uses:
+  # PrivateSubnet  -> ap-south-1b
+  # PrivateSubnet2 -> ap-south-1c
   # ============================================================
 
   CloudMartDBSubnetGroup:
@@ -52,8 +77,8 @@ Resources:
     Properties:
 
       DBSubnetGroupDescription: >
-        CloudMart RDS subnet group using two private subnets
-        across different Availability Zones.
+        CloudMart RDS subnet group using two private
+        subnets across different Availability Zones.
 
       SubnetIds:
 
@@ -64,6 +89,7 @@ Resources:
             Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
 
       Tags:
+
         - Key: Name
           Value: !Sub CloudMart-${Environment}-DB-Subnet-Group
 
@@ -71,8 +97,9 @@ Resources:
   # ============================================================
   # RDS MYSQL DATABASE
   #
-  # Single-AZ RDS.
-  # AWS manages the master password through Secrets Manager.
+  # Single-AZ deployment.
+  # Master password is automatically managed by
+  # AWS Secrets Manager.
   # ============================================================
 
   CloudMartRDS:
@@ -131,19 +158,72 @@ Resources:
       CopyTagsToSnapshot: true
 
       Tags:
+
         - Key: Name
           Value: !Sub CloudMart-${Environment}-RDS
 
 
   # ============================================================
-  # S3 BUCKET
+  # DYNAMODB ORDERS TABLE
   #
-  # IMPORTANT:
-  # The original bucket already exists:
+  # Stores CloudMart order information.
   #
-  # cloudmart-dev-119408973254-ap-south-1
+  # Primary Key:
+  # OrderId
   #
-  # Therefore this stack uses a new unique bucket name.
+  # GSI:
+  # CustomerIndex
+  # ============================================================
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+    Properties:
+
+      TableName:
+        !Sub CloudMartOrders-${Environment}
+
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+
+        - AttributeName: OrderId
+          AttributeType: S
+
+        - AttributeName: CustomerId
+          AttributeType: S
+
+      KeySchema:
+
+        - AttributeName: OrderId
+          KeyType: HASH
+
+      GlobalSecondaryIndexes:
+
+        - IndexName: CustomerIndex
+
+          KeySchema:
+
+            - AttributeName: CustomerId
+              KeyType: HASH
+
+          Projection:
+            ProjectionType: ALL
+
+      Tags:
+
+        - Key: Name
+          Value: !Sub CloudMart-${Environment}-Orders
+
+
+  # ============================================================
+  # S3 APPLICATION / REPORT STORAGE
+  #
+  # The original bucket name already exists, so -v2 is used
+  # to avoid the existing bucket conflict.
   # ============================================================
 
   CloudMartS3Bucket:
@@ -184,7 +264,7 @@ Resources:
 
 
   # ============================================================
-  # SSM PARAMETER - DB HOST
+  # SSM PARAMETER - DATABASE HOST
   # ============================================================
 
   DBHostParameter:
@@ -204,12 +284,13 @@ Resources:
         CloudMart RDS MySQL endpoint
 
       Tags:
+
         Environment: !Ref Environment
         Application: CloudMart
 
 
   # ============================================================
-  # SSM PARAMETER - DB PORT
+  # SSM PARAMETER - DATABASE PORT
   # ============================================================
 
   DBPortParameter:
@@ -228,12 +309,13 @@ Resources:
         CloudMart RDS MySQL port
 
       Tags:
+
         Environment: !Ref Environment
         Application: CloudMart
 
 
   # ============================================================
-  # SSM PARAMETER - DB NAME
+  # SSM PARAMETER - DATABASE NAME
   # ============================================================
 
   DBNameParameter:
@@ -250,15 +332,16 @@ Resources:
         !Ref DBName
 
       Description:
-        CloudMart RDS database name
+        CloudMart database name
 
       Tags:
+
         Environment: !Ref Environment
         Application: CloudMart
 
 
   # ============================================================
-  # SSM PARAMETER - DB USERNAME
+  # SSM PARAMETER - DATABASE USERNAME
   # ============================================================
 
   DBUsernameParameter:
@@ -275,9 +358,10 @@ Resources:
         !Ref DBUsername
 
       Description:
-        CloudMart RDS database username
+        CloudMart database username
 
       Tags:
+
         Environment: !Ref Environment
         Application: CloudMart
 
@@ -303,6 +387,33 @@ Resources:
         CloudMart private S3 bucket
 
       Tags:
+
+        Environment: !Ref Environment
+        Application: CloudMart
+
+
+  # ============================================================
+  # SSM PARAMETER - DYNAMODB ORDERS TABLE
+  # ============================================================
+
+  OrdersTableParameter:
+    Type: AWS::SSM::Parameter
+
+    Properties:
+
+      Name:
+        !Sub /cloudmart/${Environment}/database/orders-table
+
+      Type: String
+
+      Value:
+        !Ref OrdersTable
+
+      Description:
+        CloudMart DynamoDB Orders table name
+
+      Tags:
+
         Environment: !Ref Environment
         Application: CloudMart
 
@@ -314,7 +425,7 @@ Resources:
 Outputs:
 
   # ============================================================
-  # RDS INSTANCE
+  # RDS INSTANCE IDENTIFIER
   # ============================================================
 
   RDSInstanceIdentifier:
@@ -362,7 +473,7 @@ Outputs:
   # DATABASE NAME
   # ============================================================
 
-  DBName:
+  DBNameOutput:
     Description: CloudMart database name
 
     Value:
@@ -386,6 +497,48 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-DBSubnetGroupName
+
+
+  # ============================================================
+  # RDS SECURITY GROUP
+  # ============================================================
+
+  RDSSecurityGroupId:
+    Description: CloudMart RDS security group
+
+    Value:
+      Fn::ImportValue:
+        Fn::Sub: CloudMart-${Environment}-RDSSecurityGroupId
+
+
+  # ============================================================
+  # DYNAMODB ORDERS TABLE
+  # ============================================================
+
+  DynamoDBOrdersTable:
+    Description: CloudMart DynamoDB Orders table
+
+    Value:
+      !Ref OrdersTable
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrdersTable
+
+
+  # ============================================================
+  # DYNAMODB ORDERS TABLE ARN
+  # ============================================================
+
+  DynamoDBOrdersTableArn:
+    Description: CloudMart DynamoDB Orders table ARN
+
+    Value:
+      !GetAtt OrdersTable.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrdersTableArn
 
 
   # ============================================================
@@ -419,7 +572,7 @@ Outputs:
 
 
   # ============================================================
-  # SSM - DB HOST
+  # SSM - DATABASE HOST
   # ============================================================
 
   DBHostParameterName:
@@ -434,7 +587,7 @@ Outputs:
 
 
   # ============================================================
-  # SSM - DB PORT
+  # SSM - DATABASE PORT
   # ============================================================
 
   DBPortParameterName:
@@ -449,7 +602,7 @@ Outputs:
 
 
   # ============================================================
-  # SSM - DB NAME
+  # SSM - DATABASE NAME
   # ============================================================
 
   DBNameParameterName:
@@ -464,7 +617,7 @@ Outputs:
 
 
   # ============================================================
-  # SSM - DB USERNAME
+  # SSM - DATABASE USERNAME
   # ============================================================
 
   DBUsernameParameterName:
@@ -491,3 +644,18 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-S3BucketParameter
+
+
+  # ============================================================
+  # SSM - DYNAMODB ORDERS TABLE
+  # ============================================================
+
+  OrdersTableParameterName:
+    Description: SSM parameter containing DynamoDB Orders table name
+
+    Value:
+      !Sub /cloudmart/${Environment}/database/orders-table
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrdersTableParameter
