@@ -67,7 +67,8 @@ Resources:
 
 
   # ============================================================
-  # PRIVATE SUBNET
+  # PRIVATE SUBNET 1
+  # Existing private subnet.
   # ============================================================
 
   PrivateSubnet:
@@ -79,6 +80,35 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub CloudMart-${Environment}-Private-Subnet
+
+
+  # ============================================================
+  # PRIVATE SUBNET 2
+  #
+  # Required for the RDS DB Subnet Group.
+  #
+  # This subnet is in a different Availability Zone from
+  # PrivateSubnet.
+  #
+  # IMPORTANT:
+  # This does NOT make RDS Multi-AZ.
+  # The RDS instance can still be deployed as Single-AZ.
+  # ============================================================
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudMartVPC
+      CidrBlock: 10.0.3.0/24
+      MapPublicIpOnLaunch: false
+
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+
+      Tags:
+        - Key: Name
+          Value: !Sub CloudMart-${Environment}-Private-Subnet-2
 
 
   # ============================================================
@@ -110,6 +140,7 @@ Resources:
 
   # ============================================================
   # PRIVATE ROUTE TABLE
+  #
   # No NAT Gateway is used.
   # AWS services are reached through VPC endpoints.
   # ============================================================
@@ -130,7 +161,19 @@ Resources:
 
 
   # ============================================================
+  # PRIVATE SUBNET 2 ROUTE TABLE ASSOCIATION
+  # ============================================================
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+
+  # ============================================================
   # LAMBDA SECURITY GROUP
+  #
   # Lambda functions use this security group.
   #
   # Outbound:
@@ -168,6 +211,7 @@ Resources:
 
   # ============================================================
   # RDS SECURITY GROUP
+  #
   # Only Lambda functions can connect to RDS MySQL.
   # ============================================================
 
@@ -323,11 +367,20 @@ Resources:
 
 Outputs:
 
+  # ============================================================
+  # VPC ID
+  # ============================================================
+
   VPCId:
     Description: CloudMart VPC ID
     Value: !Ref CloudMartVPC
     Export:
       Name: !Sub CloudMart-${Environment}-VPCId
+
+
+  # ============================================================
+  # PUBLIC SUBNET ID
+  # ============================================================
 
   PublicSubnetId:
     Description: CloudMart public subnet ID
@@ -335,11 +388,34 @@ Outputs:
     Export:
       Name: !Sub CloudMart-${Environment}-PublicSubnetId
 
+
+  # ============================================================
+  # PRIVATE SUBNET 1 ID
+  # ============================================================
+
   PrivateSubnetId:
     Description: CloudMart private subnet ID
     Value: !Ref PrivateSubnet
     Export:
       Name: !Sub CloudMart-${Environment}-PrivateSubnetId
+
+
+  # ============================================================
+  # PRIVATE SUBNET 2 ID
+  #
+  # Used by the RDS DB Subnet Group.
+  # ============================================================
+
+  PrivateSubnet2Id:
+    Description: CloudMart second private subnet ID for RDS DB subnet group
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub CloudMart-${Environment}-PrivateSubnet2Id
+
+
+  # ============================================================
+  # LAMBDA SECURITY GROUP ID
+  # ============================================================
 
   LambdaSecurityGroupId:
     Description: CloudMart Lambda security group ID
@@ -347,17 +423,32 @@ Outputs:
     Export:
       Name: !Sub CloudMart-${Environment}-LambdaSecurityGroupId
 
+
+  # ============================================================
+  # RDS SECURITY GROUP ID
+  # ============================================================
+
   RDSSecurityGroupId:
     Description: CloudMart RDS security group ID
     Value: !Ref RDSSecurityGroup
     Export:
       Name: !Sub CloudMart-${Environment}-RDSSecurityGroupId
 
+
+  # ============================================================
+  # VPC ENDPOINT SECURITY GROUP ID
+  # ============================================================
+
   VPCEndpointSecurityGroupId:
     Description: CloudMart VPC endpoint security group ID
     Value: !Ref VPCEndpointSecurityGroup
     Export:
       Name: !Sub CloudMart-${Environment}-VPCEndpointSecurityGroupId
+
+
+  # ============================================================
+  # PRIVATE ROUTE TABLE ID
+  # ============================================================
 
   PrivateRouteTableId:
     Description: CloudMart private route table ID
