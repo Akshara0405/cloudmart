@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: CloudMart Data Stack
+Description: CloudMart RDS Data Stack
 
 Parameters:
 
@@ -11,19 +11,6 @@ Parameters:
       - dev
       - prod
 
-  DBName:
-    Type: String
-    Default: cloudmart
-
-  DBUsername:
-    Type: String
-    Default: admin
-
-  DBPassword:
-    Type: String
-    NoEcho: true
-    MinLength: 8
-
   DBInstanceClass:
     Type: String
     Default: db.t3.micro
@@ -31,263 +18,169 @@ Parameters:
   AllocatedStorage:
     Type: Number
     Default: 20
+    MinValue: 20
+
+  DatabaseName:
+    Type: String
+    Default: cloudmart
+
+  MasterUsername:
+    Type: String
+    Default: admin
+
+  MasterUserPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+
+  BackupRetentionPeriod:
+    Type: Number
+    Default: 7
+    MinValue: 0
 
 
 Resources:
 
   CloudMartDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+
     Properties:
-      DBSubnetGroupDescription: CloudMart RDS DB Subnet Group
+
+      DBSubnetGroupDescription: CloudMart RDS private subnet group
+
       SubnetIds:
+
         - Fn::ImportValue:
             Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
+
         - Fn::ImportValue:
             Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
+
       Tags:
+
         - Key: Name
           Value: !Sub CloudMart-${Environment}-DB-Subnet-Group
 
+        - Key: Project
+          Value: CloudMart
 
-  CloudMartDB:
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  CloudMartDatabase:
     Type: AWS::RDS::DBInstance
+
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
+
     Properties:
+
       DBInstanceIdentifier:
         !Sub cloudmart-${Environment}-db
+
       Engine: mysql
+
       EngineVersion: "8.0.46"
+
       DBInstanceClass:
         !Ref DBInstanceClass
+
       AllocatedStorage:
         !Ref AllocatedStorage
+
       StorageType: gp3
+
       StorageEncrypted: true
+
       DBName:
-        !Ref DBName
+        !Ref DatabaseName
+
       MasterUsername:
-        !Ref DBUsername
+        !Ref MasterUsername
+
       MasterUserPassword:
-        !Ref DBPassword
+        !Ref MasterUserPassword
+
       Port: 3306
-      PubliclyAccessible: false
-      MultiAZ: false
+
       DBSubnetGroupName:
         !Ref CloudMartDBSubnetGroup
+
       VPCSecurityGroups:
+
         - Fn::ImportValue:
             Fn::Sub: CloudMart-${Environment}-RDSSecurityGroupId
-      BackupRetentionPeriod: 7
+
+      PubliclyAccessible: false
+
+      MultiAZ: false
+
+      BackupRetentionPeriod:
+        !Ref BackupRetentionPeriod
+
       AutoMinorVersionUpgrade: true
+
       DeletionProtection: false
+
       CopyTagsToSnapshot: true
+
       Tags:
+
         - Key: Name
           Value: !Sub CloudMart-${Environment}-RDS
+
+        - Key: Project
+          Value: CloudMart
+
         - Key: Environment
           Value: !Ref Environment
-
-
-  CloudMartS3Bucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketName:
-        !Sub cloudmart-${Environment}-${AWS::AccountId}-${AWS::Region}-v2
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      VersioningConfiguration:
-        Status: Enabled
-      Tags:
-        - Key: Name
-          Value: !Sub CloudMart-${Environment}-S3
-        - Key: Environment
-          Value: !Ref Environment
-
-
-  DBHostParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name:
-        !Sub /cloudmart/${Environment}/database/host
-      Type: String
-      Value:
-        !GetAtt CloudMartDB.Endpoint.Address
-      Description: CloudMart RDS MySQL endpoint
-      Tags:
-        Environment: !Ref Environment
-        Application: CloudMart
-
-
-  DBPortParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name:
-        !Sub /cloudmart/${Environment}/database/port
-      Type: String
-      Value: "3306"
-      Description: CloudMart RDS MySQL port
-      Tags:
-        Environment: !Ref Environment
-        Application: CloudMart
-
-
-  DBNameParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name:
-        !Sub /cloudmart/${Environment}/database/name
-      Type: String
-      Value:
-        !Ref DBName
-      Description: CloudMart database name
-      Tags:
-        Environment: !Ref Environment
-        Application: CloudMart
-
-
-  DBUsernameParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name:
-        !Sub /cloudmart/${Environment}/database/username
-      Type: String
-      Value:
-        !Ref DBUsername
-      Description: CloudMart database username
-      Tags:
-        Environment: !Ref Environment
-        Application: CloudMart
-
-
-  S3BucketParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name:
-        !Sub /cloudmart/${Environment}/storage/bucket
-      Type: String
-      Value:
-        !Ref CloudMartS3Bucket
-      Description: CloudMart private S3 bucket name
-      Tags:
-        Environment: !Ref Environment
-        Application: CloudMart
 
 
 Outputs:
 
-  DBIdentifier:
+  DBInstanceIdentifier:
     Description: CloudMart RDS instance identifier
-    Value:
-      !Ref CloudMartDB
+    Value: !Ref CloudMartDatabase
+
     Export:
-      Name:
-        !Sub CloudMart-${Environment}-RDSInstanceIdentifier
+      Name: !Sub CloudMart-${Environment}-RDSInstanceIdentifier
 
 
   DBEndpoint:
     Description: CloudMart RDS MySQL endpoint
-    Value:
-      !GetAtt CloudMartDB.Endpoint.Address
+    Value: !GetAtt CloudMartDatabase.Endpoint.Address
+
     Export:
-      Name:
-        !Sub CloudMart-${Environment}-RDSEndpoint
+      Name: !Sub CloudMart-${Environment}-RDSEndpoint
 
 
   DBPort:
     Description: CloudMart RDS MySQL port
-    Value:
-      !GetAtt CloudMartDB.Endpoint.Port
+    Value: !GetAtt CloudMartDatabase.Endpoint.Port
+
     Export:
-      Name:
-        !Sub CloudMart-${Environment}-RDSPort
+      Name: !Sub CloudMart-${Environment}-RDSPort
 
 
-  DBNameOutput:
+  DatabaseName:
     Description: CloudMart database name
-    Value:
-      !Ref DBName
+    Value: !Ref DatabaseName
+
     Export:
-      Name:
-        !Sub CloudMart-${Environment}-DBName
+      Name: !Sub CloudMart-${Environment}-DBName
 
 
   DBSubnetGroupName:
     Description: CloudMart RDS DB subnet group
-    Value:
-      !Ref CloudMartDBSubnetGroup
+    Value: !Ref CloudMartDBSubnetGroup
+
     Export:
-      Name:
-        !Sub CloudMart-${Environment}-DBSubnetGroupName
+      Name: !Sub CloudMart-${Environment}-DBSubnetGroupName
 
 
-  S3BucketName:
-    Description: CloudMart private S3 bucket
+  RDSSecurityGroupId:
+    Description: CloudMart RDS security group
     Value:
-      !Ref CloudMartS3Bucket
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-S3BucketName
-
-
-  S3BucketArn:
-    Description: CloudMart S3 bucket ARN
-    Value:
-      !GetAtt CloudMartS3Bucket.Arn
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-S3BucketArn
-
-
-  DBHostParameterName:
-    Description: SSM parameter containing RDS endpoint
-    Value:
-      !Sub /cloudmart/${Environment}/database/host
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-DBHostParameter
-
-
-  DBPortParameterName:
-    Description: SSM parameter containing RDS port
-    Value:
-      !Sub /cloudmart/${Environment}/database/port
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-DBPortParameter
-
-
-  DBNameParameterName:
-    Description: SSM parameter containing database name
-    Value:
-      !Sub /cloudmart/${Environment}/database/name
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-DBNameParameter
-
-
-  DBUsernameParameterName:
-    Description: SSM parameter containing database username
-    Value:
-      !Sub /cloudmart/${Environment}/database/username
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-DBUsernameParameter
-
-
-  S3BucketParameterName:
-    Description: SSM parameter containing S3 bucket name
-    Value:
-      !Sub /cloudmart/${Environment}/storage/bucket
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-S3BucketParameter
+      Fn::ImportValue:
+        Fn::Sub: CloudMart-${Environment}-RDSSecurityGroupId
