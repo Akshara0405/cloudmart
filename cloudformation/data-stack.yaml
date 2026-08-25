@@ -35,7 +35,7 @@ Parameters:
 
   BackupRetentionPeriod:
     Type: Number
-    Default: 7
+    Default: 1
     MinValue: 0
 
 
