@@ -8,10 +8,6 @@ Description: >
 
 Parameters:
 
-  # ============================================================
-  # ENVIRONMENT
-  # ============================================================
-
   Environment:
     Type: String
     Default: dev
@@ -20,22 +16,10 @@ Parameters:
       - prod
     Description: Environment name.
 
-
-  # ============================================================
-  # DATABASE NAME
-  # ============================================================
-
   DBName:
     Type: String
     Default: cloudmart
     Description: CloudMart RDS database name.
-
-
-  # ============================================================
-  # DATABASE USERNAME
-  # Password is NOT supplied through GitHub.
-  # AWS Secrets Manager manages the RDS master password.
-  # ============================================================
 
   DBUsername:
     Type: String
@@ -43,20 +27,10 @@ Parameters:
     NoEcho: true
     Description: RDS master username.
 
-
-  # ============================================================
-  # RDS INSTANCE CLASS
-  # ============================================================
-
   DBInstanceClass:
     Type: String
     Default: db.t3.micro
     Description: RDS instance class.
-
-
-  # ============================================================
-  # RDS STORAGE
-  # ============================================================
 
   AllocatedStorage:
     Type: Number
@@ -69,12 +43,7 @@ Resources:
   # ============================================================
   # RDS DB SUBNET GROUP
   #
-  # RDS requires a DB subnet group containing subnets from
-  # at least two Availability Zones.
-  #
-  # IMPORTANT:
-  # This does NOT make the RDS instance Multi-AZ.
-  # The actual RDS instance remains Single-AZ.
+  # Uses two private subnets in different Availability Zones.
   # ============================================================
 
   CloudMartDBSubnetGroup:
@@ -102,10 +71,8 @@ Resources:
   # ============================================================
   # RDS MYSQL DATABASE
   #
-  # Single-AZ deployment.
-  #
-  # AWS Secrets Manager automatically manages the master
-  # database password.
+  # Single-AZ RDS.
+  # AWS manages the master password through Secrets Manager.
   # ============================================================
 
   CloudMartRDS:
@@ -139,15 +106,12 @@ Resources:
       MasterUsername:
         !Ref DBUsername
 
-      # AWS automatically creates and manages the
-      # master password in AWS Secrets Manager.
       ManageMasterUserPassword: true
 
       Port: 3306
 
       PubliclyAccessible: false
 
-      # Keep RDS Single-AZ as required by the architecture.
       MultiAZ: false
 
       DBSubnetGroupName:
@@ -174,8 +138,9 @@ Resources:
   # ============================================================
   # S3 BUCKET
   #
-  # Used by CloudMart for application/report storage.
-  # Bucket remains private.
+  # Private bucket.
+  # AccessControl is intentionally omitted because modern
+  # S3 buckets use BucketOwnerEnforced ownership by default.
   # ============================================================
 
   CloudMartS3Bucket:
@@ -188,8 +153,6 @@ Resources:
 
       BucketName:
         !Sub cloudmart-${Environment}-${AWS::AccountId}-${AWS::Region}
-
-      AccessControl: Private
 
       PublicAccessBlockConfiguration:
 
@@ -217,13 +180,7 @@ Resources:
 
 
   # ============================================================
-  # SSM PARAMETERS
-  #
-  # These parameters provide database configuration to
-  # application Lambdas.
-  #
-  # The database password is NOT stored here.
-  # RDS master password is managed by Secrets Manager.
+  # SSM PARAMETER - DB HOST
   # ============================================================
 
   DBHostParameter:
@@ -248,7 +205,7 @@ Resources:
 
 
   # ============================================================
-  # DB PORT PARAMETER
+  # SSM PARAMETER - DB PORT
   # ============================================================
 
   DBPortParameter:
@@ -272,7 +229,7 @@ Resources:
 
 
   # ============================================================
-  # DB NAME PARAMETER
+  # SSM PARAMETER - DB NAME
   # ============================================================
 
   DBNameParameter:
@@ -297,7 +254,7 @@ Resources:
 
 
   # ============================================================
-  # DB USERNAME PARAMETER
+  # SSM PARAMETER - DB USERNAME
   # ============================================================
 
   DBUsernameParameter:
@@ -322,9 +279,7 @@ Resources:
 
 
   # ============================================================
-  # S3 BUCKET NAME PARAMETER
-  #
-  # Application Lambdas can retrieve the bucket name from SSM.
+  # SSM PARAMETER - S3 BUCKET
   # ============================================================
 
   S3BucketParameter:
@@ -353,7 +308,6 @@ Resources:
 # ==============================================================
 
 Outputs:
-
 
   # ============================================================
   # RDS INSTANCE
