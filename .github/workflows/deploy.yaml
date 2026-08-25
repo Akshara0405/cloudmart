@@ -92,7 +92,7 @@ jobs:
       - name: Deploy Data Stack
         run: |
             aws cloudformation deploy \
-            --template-file cloudformation/data-stack.yml \
+            --template-file cloudformation/data-stack.yaml \
             --stack-name cloudmart-dev-data \
             --region ap-south-1 \
             --parameter-overrides \
