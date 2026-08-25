@@ -95,16 +95,14 @@ Resources:
   # The RDS instance can still be deployed as Single-AZ.
   # ============================================================
 
-  PrivateSubnet2:
+    PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref CloudMartVPC
       CidrBlock: 10.0.3.0/24
       MapPublicIpOnLaunch: false
 
-      AvailabilityZone: !Select
-        - 1
-        - !GetAZs ''
+      AvailabilityZone: ap-south-1c
 
       Tags:
         - Key: Name
