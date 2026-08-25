@@ -1,57 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
-
-Description: CloudMart Data Stack
-
-Parameters:
-
-  DBName:
-    Type: String
-    Default: cloudmart
-
-  DBUsername:
-    Type: String
-    Default: admin
-
-  DBPassword:
-    Type: String
-    NoEcho: true
+Description: CloudMart Data Stack Test
 
 Resources:
-
-  DBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: CloudMart DB Subnet Group
-      SubnetIds:
-        - Fn::ImportValue: CloudMart-dev-PrivateSubnetId
-        - Fn::ImportValue: CloudMart-dev-PrivateSubnet2Id
-
-  CloudMartDB:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBInstanceIdentifier: cloudmart-db
-      Engine: mysql
-      EngineVersion: "8.0.46"
-      DBInstanceClass: db.t3.micro
-      AllocatedStorage: 20
-      StorageType: gp3
-      StorageEncrypted: true
-      PubliclyAccessible: false
-      MultiAZ: false
-
-      DBName: !Ref DBName
-
-      MasterUsername: !Ref DBUsername
-      MasterUserPassword: !Ref DBPassword
-
-      DBSubnetGroupName: !Ref DBSubnetGroup
-
-      VPCSecurityGroups:
-        - Fn::ImportValue: CloudMart-dev-RDSSecurityGroupId
-
-      BackupRetentionPeriod: 0
-      AutoMinorVersionUpgrade: true
-      DeletionProtection: false
 
   OrdersTable:
     Type: AWS::DynamoDB::Table
@@ -62,7 +12,6 @@ Resources:
       AttributeDefinitions:
         - AttributeName: OrderId
           AttributeType: S
-
         - AttributeName: CustomerId
           AttributeType: S
 
@@ -80,28 +29,6 @@ Resources:
 
   LambdaArtifactsBucket:
     Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub cloudmart-lambda-${AWS::AccountId}-${AWS::Region}
 
   ReportsBucket:
     Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub cloudmart-reports-${AWS::AccountId}-${AWS::Region}
-
-Outputs:
-
-  DBEndpoint:
-    Description: RDS Endpoint
-    Value: !GetAtt CloudMartDB.Endpoint.Address
-
-  DynamoDBTable:
-    Description: DynamoDB Orders Table
-    Value: !Ref OrdersTable
-
-  LambdaBucket:
-    Description: Lambda Artifacts Bucket
-    Value: !Ref LambdaArtifactsBucket
-
-  ReportsBucketName:
-    Description: Reports Bucket
-    Value: !Ref ReportsBucket
