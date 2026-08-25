@@ -1,4 +1,4 @@
-name: Deploy CloudMart IAM Stack
+name: CloudMart IAM Stack
 
 on:
   workflow_dispatch:
@@ -7,14 +7,9 @@ permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: ap-south-1
-  ENVIRONMENT: dev
-  STACK_NAME: cloudmart-dev-iam
-
 jobs:
+
   deploy-iam:
-    name: Deploy IAM Stack
     runs-on: ubuntu-latest
 
     steps:
@@ -25,29 +20,48 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Verify AWS access
+        run: |
+          aws sts get-caller-identity
 
       - name: Validate IAM CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/iam-stack.yaml \
-            --region $AWS_REGION
+            --template-body file://cloudformation/iam-stack.yaml
 
       - name: Deploy IAM Stack
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/iam-stack.yaml \
-            --stack-name $STACK_NAME \
-            --region $AWS_REGION \
-            --capabilities CAPABILITY_NAMED_IAM \
+            --stack-name cloudmart-dev-iam \
+            --region ap-south-1 \
             --parameter-overrides \
-              Environment=$ENVIRONMENT
+              Environment=dev \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
 
-      - name: Display IAM Stack Outputs
+      - name: Check IAM Stack Status
+        if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name $STACK_NAME \
-            --region $AWS_REGION \
+            --stack-name cloudmart-dev-iam \
+            --region ap-south-1
+
+      - name: Show IAM Stack Events
+        if: always()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name cloudmart-dev-iam \
+            --region ap-south-1
+
+      - name: Show IAM Stack Outputs
+        if: success()
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-iam \
+            --region ap-south-1 \
             --query "Stacks[0].Outputs" \
             --output table
