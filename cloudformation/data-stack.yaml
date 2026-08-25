@@ -30,5 +30,13 @@ Resources:
   LambdaArtifactsBucket:
     Type: AWS::S3::Bucket
 
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: CloudMart DB Subnet Group
+      SubnetIds:
+        - Fn::ImportValue: CloudMart-dev-PrivateSubnetId
+        - Fn::ImportValue: CloudMart-dev-PrivateSubnet2Id
+
   ReportsBucket:
     Type: AWS::S3::Bucket
