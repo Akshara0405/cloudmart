@@ -1,4 +1,3 @@
-
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: CloudMart IAM Stack
@@ -18,6 +17,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudMart-${Environment}-Authorizer-Lambda-Role
+
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -27,13 +27,27 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Policies:
+        - PolicyName: AuthorizerSSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/auth/token
+
 
   ApplicationLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudMart-${Environment}-Application-Lambda-Role
+
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -43,13 +57,16 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
 
   OrderProcessorLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudMart-${Environment}-OrderProcessor-Lambda-Role
+
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -59,13 +76,16 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
 
   InventoryAlertLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudMart-${Environment}-InventoryAlert-Lambda-Role
+
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -75,13 +95,16 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
 
   ReportLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub CloudMart-${Environment}-Report-Lambda-Role
+
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -91,8 +114,10 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
 
 Outputs:
 
