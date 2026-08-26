@@ -1,3 +1,4 @@
+
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: CloudMart Authentication Stack
@@ -25,7 +26,7 @@ Resources:
       Name:
         !Sub /cloudmart/${Environment}/auth/token
 
-      Type: SecureString
+      Type: String
 
       Value:
         !Ref AuthToken
@@ -88,9 +89,7 @@ Resources:
 
           TOKEN_PARAMETER = os.environ["AUTH_TOKEN_PARAMETER"]
 
-
           def get_expected_token():
-
               response = ssm.get_parameter(
                   Name=TOKEN_PARAMETER,
                   WithDecryption=True
@@ -98,9 +97,7 @@ Resources:
 
               return response["Parameter"]["Value"]
 
-
           def generate_policy(principal_id, effect, resource):
-
               return {
                   "principalId": principal_id,
                   "policyDocument": {
@@ -114,7 +111,6 @@ Resources:
                       ]
                   }
               }
-
 
           def lambda_handler(event, context):
 
@@ -191,7 +187,7 @@ Outputs:
 
 
   AuthTokenParameterName:
-    Description: SSM SecureString containing CloudMart authentication token
+    Description: SSM authentication token parameter
     Value:
       !Ref AuthTokenParameter
 
@@ -208,3 +204,4 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-AuthTokenParameterArn
+
