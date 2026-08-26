@@ -324,16 +324,6 @@ Outputs:
       Name: !Sub CloudMart-${Environment}-DBSubnetGroupName
 
 
-  RDSSecurityGroupId:
-    Description: CloudMart RDS security group
-    Value:
-      Fn::ImportValue:
-        Fn::Sub: CloudMart-${Environment}-RDSSecurityGroupId
-
-    Export:
-      Name: !Sub CloudMart-${Environment}-RDSSecurityGroupId
-
-
   ReportsBucketName:
     Description: CloudMart reports S3 bucket
     Value: !Ref CloudMartReportsBucket
