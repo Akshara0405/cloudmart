@@ -261,27 +261,6 @@ Resources:
         Application: CloudMart
 
 
-  DBPasswordParameter:
-    Type: AWS::SSM::Parameter
-
-    Properties:
-
-      Name:
-        !Sub /cloudmart/${Environment}/database/password
-
-      Type: SecureString
-
-      Value:
-        !Ref MasterUserPassword
-
-      Description: CloudMart RDS database password
-
-      Tags:
-
-        Environment: !Ref Environment
-        Application: CloudMart
-
-
   S3ReportsBucketParameter:
     Type: AWS::SSM::Parameter
 
@@ -405,15 +384,6 @@ Outputs:
 
     Export:
       Name: !Sub CloudMart-${Environment}-DBUsernameParameter
-
-
-  DBPasswordParameterName:
-    Description: SSM SecureString parameter containing database password
-    Value:
-      !Sub /cloudmart/${Environment}/database/password
-
-    Export:
-      Name: !Sub CloudMart-${Environment}-DBPasswordParameter
 
 
   ReportsBucketParameterName:
