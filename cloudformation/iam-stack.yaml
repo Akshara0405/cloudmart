@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: '2010-09-09'
-
 Description: CloudMart IAM Stack
 
 Parameters:
@@ -220,3 +219,4 @@ Outputs:
     Value: !GetAtt ReportLambdaRole.Arn
     Export:
       Name: !Sub CloudMart-${Environment}-ReportLambdaRoleArn
+
