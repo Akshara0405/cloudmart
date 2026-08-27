@@ -291,3 +291,77 @@ jobs:
             --query "Stacks[0].Outputs" \
             --output table
 
+  deploy-schema:
+    runs-on: ubuntu-latest
+
+    needs: deploy-auth
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Install PyMySQL
+        run: |
+          mkdir -p lambda/schema/package
+          pip install PyMySQL \
+            -t lambda/schema/package
+
+      - name: Package Schema Lambda
+        run: |
+          cp lambda/schema/index.py \
+            lambda/schema/package/index.py
+
+          cd lambda/schema/package
+
+          zip -r ../schema-lambda.zip .
+
+      - name: Upload Schema Lambda package
+        run: |
+          aws s3 cp \
+            lambda/schema/schema-lambda.zip \
+            s3://cloudmart-dev-reports-${{ secrets.AWS_ACCOUNT_ID }}-ap-south-1/schema/schema-lambda.zip
+
+      - name: Validate Schema CloudFormation
+        run: |
+          aws cloudformation validate-template \
+            --template-body \
+            file://cloudformation/schema-stack.yaml
+
+      - name: Deploy Schema Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file \
+            cloudformation/schema-stack.yaml \
+            --stack-name \
+            cloudmart-dev-schema \
+            --region ap-south-1 \
+            --parameter-overrides \
+              Environment=dev \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+      - name: Invoke Schema Migration
+        run: |
+          aws lambda invoke \
+            --function-name \
+            CloudMart-dev-SchemaMigration \
+            --region ap-south-1 \
+            schema-result.json
+
+          cat schema-result.json
+
+      - name: Verify Schema
+        run: |
+          grep -q \
+            "Schema applied successfully" \
+            schema-result.json
+
+          echo "CloudMart database schema verified successfully."
+
