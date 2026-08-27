@@ -139,7 +139,7 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-data \
+            --stack-name cloudmart-dev-data newversion\
             --region ap-south-1 \
             --query "Stacks[0].StackStatus" \
             --output text
@@ -148,7 +148,7 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-data \
+            --stack-name cloudmart-dev-data newversion \
             --region ap-south-1 \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
