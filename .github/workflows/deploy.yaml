@@ -1,3 +1,4 @@
+
 name: CloudMart Infrastructure
 
 on:
@@ -42,6 +43,16 @@ jobs:
             --template-file cloudformation/network-stack.yaml \
             --stack-name cloudmart-dev-network \
             --parameter-overrides Environment=dev \
+            --region ap-south-1 \
+            --no-fail-on-empty-changeset
+
+      - name: Wait for Network Stack
+        run: |
+          aws cloudformation wait stack-create-complete \
+            --stack-name cloudmart-dev-network \
+            --region ap-south-1 || \
+          aws cloudformation wait stack-update-complete \
+            --stack-name cloudmart-dev-network \
             --region ap-south-1
 
       - name: Check Network Stack Status
@@ -49,14 +60,18 @@ jobs:
         run: |
           aws cloudformation describe-stacks \
             --stack-name cloudmart-dev-network \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text
 
       - name: Show Network Stack Events
-        if: always()
+        if: failure()
         run: |
           aws cloudformation describe-stack-events \
             --stack-name cloudmart-dev-network \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
+            --output table
 
 
   # ============================================================
@@ -84,6 +99,21 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Verify Network Stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-network \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text)
+
+          echo "Network stack status: $STATUS"
+
+          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
+            echo "Network stack is not ready."
+            exit 1
+          fi
+
       - name: Validate Data CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -91,33 +121,56 @@ jobs:
 
       - name: Deploy Data Stack
         run: |
-            aws cloudformation deploy \
+          aws cloudformation deploy \
             --template-file cloudformation/data-stack.yaml \
             --stack-name cloudmart-dev-data \
             --region ap-south-1 \
             --parameter-overrides \
-                Environment=dev \
-                MasterUsername="${{ secrets.DB_USERNAME }}" \
-                MasterUserPassword="${{ secrets.DB_PASSWORD }}" \
+              Environment=dev \
+              MasterUsername="${{ secrets.DB_USERNAME }}" \
+              MasterUserPassword="${{ secrets.DB_PASSWORD }}" \
             --no-fail-on-empty-changeset
+
+      - name: Wait for Data Stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-data \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text)
+
+          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-create-complete \
+              --stack-name cloudmart-dev-data \
+              --region ap-south-1
+          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-update-complete \
+              --stack-name cloudmart-dev-data \
+              --region ap-south-1
+          fi
 
       - name: Check Data Stack Status
         if: always()
         run: |
           aws cloudformation describe-stacks \
             --stack-name cloudmart-dev-data \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text
 
       - name: Show Data Stack Events
-        if: always()
+        if: failure()
         run: |
           aws cloudformation describe-stack-events \
             --stack-name cloudmart-dev-data \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
+            --output table
+
 
   # ============================================================
   # IAM STACK
-  # Runs only after Network and Data stacks succeed
+  # Runs only after Data Stack succeeds
   # ============================================================
 
   deploy-iam:
@@ -140,6 +193,21 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Verify Data Stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-data \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text)
+
+          echo "Data stack status: $STATUS"
+
+          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
+            echo "Data stack is not ready."
+            exit 1
+          fi
+
       - name: Validate IAM CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -156,19 +224,41 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
+      - name: Wait for IAM Stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-iam \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text)
+
+          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-create-complete \
+              --stack-name cloudmart-dev-iam \
+              --region ap-south-1
+          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-update-complete \
+              --stack-name cloudmart-dev-iam \
+              --region ap-south-1
+          fi
+
       - name: Check IAM Stack Status
         if: always()
         run: |
           aws cloudformation describe-stacks \
             --stack-name cloudmart-dev-iam \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text
 
       - name: Show IAM Stack Events
-        if: always()
+        if: failure()
         run: |
           aws cloudformation describe-stack-events \
             --stack-name cloudmart-dev-iam \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
+            --output table
 
       - name: Show IAM Stack Outputs
         if: success()
@@ -178,6 +268,13 @@ jobs:
             --region ap-south-1 \
             --query "Stacks[0].Outputs" \
             --output table
+
+
+  # ============================================================
+  # AUTHENTICATION STACK
+  # Runs only after IAM Stack succeeds
+  # ============================================================
+
   deploy-auth:
     runs-on: ubuntu-latest
 
@@ -198,6 +295,21 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Verify IAM Stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-iam \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text)
+
+          echo "IAM stack status: $STATUS"
+
+          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
+            echo "IAM stack is not ready."
+            exit 1
+          fi
+
       - name: Validate Auth CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -214,16 +326,48 @@ jobs:
               AuthToken="${{ secrets.CLOUDMART_AUTH_TOKEN }}" \
             --no-fail-on-empty-changeset
 
+      - name: Wait for Auth Stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-auth \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text)
+
+          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-create-complete \
+              --stack-name cloudmart-dev-auth \
+              --region ap-south-1
+          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            aws cloudformation wait stack-update-complete \
+              --stack-name cloudmart-dev-auth \
+              --region ap-south-1
+          fi
+
       - name: Check Auth Stack Status
         if: always()
         run: |
           aws cloudformation describe-stacks \
             --stack-name cloudmart-dev-auth \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text
 
       - name: Show Auth Stack Events
-        if: always()
+        if: failure()
         run: |
           aws cloudformation describe-stack-events \
             --stack-name cloudmart-dev-auth \
-            --region ap-south-1
+            --region ap-south-1 \
+            --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
+            --output table
+
+      - name: Show Auth Stack Outputs
+        if: success()
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-auth \
+            --region ap-south-1 \
+            --query "Stacks[0].Outputs" \
+            --output table
+
