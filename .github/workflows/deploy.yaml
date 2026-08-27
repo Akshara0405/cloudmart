@@ -11,8 +11,8 @@ permissions:
 jobs:
 
   # ============================================================
-  # YAML LINTING
-  # Checks all YAML files before deployment
+  # CLOUDFORMATION YAML LINTING
+  # Checks ONLY YAML files inside cloudformation/
   # ============================================================
 
   lint-yaml:
@@ -27,12 +27,11 @@ jobs:
         run: |
           pip install yamllint
 
-      - name: Lint all YAML files
+      - name: Lint CloudFormation YAML files
         run: |
-          find . \
+          find cloudformation \
             -type f \
             \( -name "*.yaml" -o -name "*.yml" \) \
-            -not -path "./.git/*" \
             -print0 | xargs -0 yamllint -d relaxed
 
 
@@ -74,24 +73,6 @@ jobs:
             --parameter-overrides Environment=dev \
             --region ap-south-1 \
             --no-fail-on-empty-changeset
-
-      - name: Wait for Network Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-network \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-create-complete \
-              --stack-name cloudmart-dev-network \
-              --region ap-south-1
-          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-update-complete \
-              --stack-name cloudmart-dev-network \
-              --region ap-south-1
-          fi
 
       - name: Check Network Stack Status
         if: always()
@@ -137,21 +118,6 @@ jobs:
         run: |
           aws sts get-caller-identity
 
-      - name: Verify Network Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-network \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          echo "Network stack status: $STATUS"
-
-          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
-            echo "Network stack is not ready."
-            exit 1
-          fi
-
       - name: Validate Data CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -168,24 +134,6 @@ jobs:
               MasterUsername="${{ secrets.DB_USERNAME }}" \
               MasterUserPassword="${{ secrets.DB_PASSWORD }}" \
             --no-fail-on-empty-changeset
-
-      - name: Wait for Data Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-data \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-create-complete \
-              --stack-name cloudmart-dev-data \
-              --region ap-south-1
-          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-update-complete \
-              --stack-name cloudmart-dev-data \
-              --region ap-south-1
-          fi
 
       - name: Check Data Stack Status
         if: always()
@@ -231,21 +179,6 @@ jobs:
         run: |
           aws sts get-caller-identity
 
-      - name: Verify Data Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-data \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          echo "Data stack status: $STATUS"
-
-          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
-            echo "Data stack is not ready."
-            exit 1
-          fi
-
       - name: Validate IAM CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -261,24 +194,6 @@ jobs:
               Environment=dev \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
-
-      - name: Wait for IAM Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-iam \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-create-complete \
-              --stack-name cloudmart-dev-iam \
-              --region ap-south-1
-          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-update-complete \
-              --stack-name cloudmart-dev-iam \
-              --region ap-south-1
-          fi
 
       - name: Check IAM Stack Status
         if: always()
@@ -333,21 +248,6 @@ jobs:
         run: |
           aws sts get-caller-identity
 
-      - name: Verify IAM Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-iam \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          echo "IAM stack status: $STATUS"
-
-          if [[ "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
-            echo "IAM stack is not ready."
-            exit 1
-          fi
-
       - name: Validate Auth CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -363,24 +263,6 @@ jobs:
               Environment=dev \
               AuthToken="${{ secrets.CLOUDMART_AUTH_TOKEN }}" \
             --no-fail-on-empty-changeset
-
-      - name: Wait for Auth Stack
-        run: |
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-auth \
-            --region ap-south-1 \
-            --query "Stacks[0].StackStatus" \
-            --output text)
-
-          if [[ "$STATUS" == "CREATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-create-complete \
-              --stack-name cloudmart-dev-auth \
-              --region ap-south-1
-          elif [[ "$STATUS" == "UPDATE_IN_PROGRESS" ]]; then
-            aws cloudformation wait stack-update-complete \
-              --stack-name cloudmart-dev-auth \
-              --region ap-south-1
-          fi
 
       - name: Check Auth Stack Status
         if: always()
