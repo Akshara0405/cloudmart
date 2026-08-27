@@ -127,7 +127,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/data-stack.yaml \
-            --stack-name cloudmart-dev-data \
+            --stack-name cloudmart-dev-data newversion\
             --region ap-south-1 \
             --parameter-overrides \
               Environment=dev \
