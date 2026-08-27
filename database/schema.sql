@@ -1,4 +1,4 @@
-```sql
+
 CREATE TABLE IF NOT EXISTS categories (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -128,4 +128,26 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1 FROM customers WHERE customer_id = 'CUST001'
 );
-```
+INSERT INTO categories (name, description)
+VALUES
+('Electronics', 'Electronic products'),
+('Accessories', 'Computer and mobile accessories');
+
+INSERT INTO customers
+(customer_id, name, email, phone, address)
+VALUES
+('CUST001', 'Test Customer', 'customer1@cloudmart.com', '9876543210', 'Hyderabad');
+
+INSERT INTO order_status
+(status_name, description)
+VALUES
+('pending', 'Order is pending'),
+('confirmed', 'Order is confirmed'),
+('failed', 'Order has failed');
+
+INSERT INTO products
+(name, description, price, category, stock_count)
+VALUES
+('Laptop', 'Business laptop', 65000.00, 'Electronics', 10),
+('Wireless Mouse', 'Wireless optical mouse', 1200.00, 'Accessories', 25),
+('Keyboard', 'Mechanical keyboard', 3500.00, 'Accessories', 15);
