@@ -300,7 +300,7 @@ Resources:
       Name:
         !Sub /cloudmart/${Environment}/database/password
 
-      Type: SecureString
+      Type: String
 
       Value:
         !Ref MasterUserPassword
