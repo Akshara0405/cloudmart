@@ -130,8 +130,7 @@ Resources:
 
           DB_PASSWORD:
             Fn::ImportValue:
-              Fn::Sub: CloudMart-${Environment}-DatabasePassword
-
+              Fn::Sub: CloudMart-${Environment}-DBPasswordParameter
       VpcConfig:
 
         SecurityGroupIds:
@@ -187,7 +186,8 @@ Resources:
               database = get_parameter(DB_NAME_PARAMETER)
               username = get_parameter(DB_USERNAME_PARAMETER)
 
-              password = os.environ["DB_PASSWORD"]
+              DB_PASSWORD_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/password"
+              password = get_parameter(DB_PASSWORD_PARAMETER)
 
               return pymysql.connect(
                   host=host,
