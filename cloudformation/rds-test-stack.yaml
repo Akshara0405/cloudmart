@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: CloudMart temporary Lambda to RDS connectivity test
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+
+Resources:
+
+  # ============================================================
+  # TEMPORARY RDS TEST LAMBDA
+  # ============================================================
+
+  RdsTestLambda:
+    Type: AWS::Lambda::Function
+
+    Properties:
+
+      FunctionName:
+        !Sub CloudMart-${Environment}-RDS-Test
+
+      Runtime: python3.12
+
+      Handler: index.lambda_handler
+
+      Role:
+        Fn::ImportValue:
+          Fn::Sub: CloudMart-${Environment}-ApplicationLambdaRoleArn
+
+      Timeout: 10
+
+      MemorySize: 128
+
+      VpcConfig:
+
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-LambdaSecurityGroupId
+
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
+
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
+
+      Environment:
+
+        Variables:
+
+          DB_HOST_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/host
+
+          DB_PORT_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/port
+
+          DB_NAME_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/name
+
+      Code:
+
+        ZipFile: |
+
+          import boto3
+          import json
+          import logging
+          import os
+          import socket
+
+
+          logger = logging.getLogger()
+
+          logger.setLevel(logging.INFO)
+
+
+          ssm = boto3.client("ssm")
+
+
+          DB_HOST_PARAMETER = os.environ["DB_HOST_PARAMETER"]
+
+          DB_PORT_PARAMETER = os.environ["DB_PORT_PARAMETER"]
+
+          DB_NAME_PARAMETER = os.environ["DB_NAME_PARAMETER"]
+
+
+          def get_parameter(name):
+
+              response = ssm.get_parameter(
+                  Name=name
+              )
+
+              return response["Parameter"]["Value"]
+
+
+          def lambda_handler(event, context):
+
+              try:
+
+                  host = get_parameter(
+                      DB_HOST_PARAMETER
+                  )
+
+                  port = int(
+                      get_parameter(
+                          DB_PORT_PARAMETER
+                      )
+                  )
+
+                  database = get_parameter(
+                      DB_NAME_PARAMETER
+                  )
+
+
+                  logger.info(json.dumps({
+                      "level": "INFO",
+                      "service": "rds-connectivity-test",
+                      "action": "connection_attempt",
+                      "host": host,
+                      "port": port,
+                      "database": database
+                  }))
+
+
+                  sock = socket.create_connection(
+                      (host, port),
+                      timeout=5
+                  )
+
+
+                  sock.close()
+
+
+                  logger.info(json.dumps({
+                      "level": "INFO",
+                      "service": "rds-connectivity-test",
+                      "action": "connection_test",
+                      "status": "success"
+                  }))
+
+
+                  return {
+
+                      "statusCode": 200,
+
+                      "body": json.dumps({
+                          "message": "Lambda can reach RDS",
+                          "database": database,
+                          "port": port
+                      })
+
+                  }
+
+
+              except Exception as e:
+
+                  logger.error(json.dumps({
+                      "level": "ERROR",
+                      "service": "rds-connectivity-test",
+                      "action": "connection_test",
+                      "status": "failed",
+                      "error": str(e)
+                  }))
+
+
+                  return {
+
+                      "statusCode": 500,
+
+                      "body": json.dumps({
+                          "message": "Lambda cannot reach RDS",
+                          "error": str(e)
+                      })
+
+                  }
+
+
+# ================================================================
+# OUTPUTS
+# ================================================================
+
+Outputs:
+
+  RdsTestLambdaArn:
+
+    Description: Temporary RDS connectivity test Lambda ARN
+
+    Value:
+      !GetAtt RdsTestLambda.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-RdsTestLambdaArn
