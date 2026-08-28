@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  CloudMart Monitoring Stack.
+  Creates SNS topic, email subscription, and EventBridge
+  rule for low-stock inventory alerts.
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+  AlertEmail:
+    Type: String
+    Description: Email address to receive CloudMart low-stock alerts
+
+
+  LowStockThreshold:
+    Type: Number
+    Default: 5
+    Description: Stock level at or below which a low-stock alert is generated
+
+
+Resources:
+
+  # ============================================================
+  # SNS TOPIC
+  # ============================================================
+
+  LowStockTopic:
+    Type: AWS::SNS::Topic
+
+    Properties:
+      TopicName:
+        !Sub CloudMart-${Environment}-LowStockAlerts
+
+      DisplayName:
+        !Sub CloudMart ${Environment} Low Stock Alerts
+
+
+  # ============================================================
+  # SNS EMAIL SUBSCRIPTION
+  # ============================================================
+
+  LowStockEmailSubscription:
+    Type: AWS::SNS::Subscription
+
+    Properties:
+      TopicArn:
+        !Ref LowStockTopic
+
+      Protocol: email
+
+      Endpoint:
+        !Ref AlertEmail
+
+
+  # ============================================================
+  # EVENTBRIDGE RULE
+  # ============================================================
+
+  InventoryChangeRule:
+    Type: AWS::Events::Rule
+
+    Properties:
+
+      Name:
+        !Sub CloudMart-${Environment}-InventoryChangeRule
+
+      Description:
+        !Sub CloudMart ${Environment} inventory low-stock event rule
+
+      EventPattern:
+        source:
+          - cloudmart.product
+
+        detail-type:
+          - InventoryChanged
+
+        detail:
+          low_stock:
+            - true
+
+      State: ENABLED
+
+      Targets:
+
+        - Arn:
+            !Ref LowStockTopic
+
+          Id: LowStockSNSTarget
+
+
+  # ============================================================
+  # SNS TOPIC POLICY
+  # ALLOWS EVENTBRIDGE TO PUBLISH TO SNS
+  # ============================================================
+
+  LowStockTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+
+    Properties:
+
+      Topics:
+        - !Ref LowStockTopic
+
+      PolicyDocument:
+
+        Version: '2012-10-17'
+
+        Statement:
+
+          - Sid: AllowEventBridgePublish
+
+            Effect: Allow
+
+            Principal:
+              Service: events.amazonaws.com
+
+            Action:
+              - sns:Publish
+
+            Resource:
+              !Ref LowStockTopic
+
+            Condition:
+
+              ArnEquals:
+
+                aws:SourceArn:
+                  !GetAtt InventoryChangeRule.Arn
+
+
+Outputs:
+
+  # ============================================================
+  # SNS TOPIC ARN
+  # ============================================================
+
+  LowStockTopicArn:
+    Description: SNS topic ARN for CloudMart low-stock alerts
+
+    Value:
+      !Ref LowStockTopic
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-LowStockTopicArn
+
+
+  # ============================================================
+  # EVENTBRIDGE RULE ARN
+  # ============================================================
+
+  InventoryChangeRuleArn:
+    Description: EventBridge inventory change rule ARN
+
+    Value:
+      !GetAtt InventoryChangeRule.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-InventoryChangeRuleArn

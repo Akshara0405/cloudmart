@@ -63,6 +63,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
       Policies:
+
         - PolicyName: ApplicationSSMAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -72,6 +73,21 @@ Resources:
                   - ssm:GetParameter
                 Resource:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/*
+
+        # ========================================================
+        # EVENTBRIDGE PERMISSION
+        # Allows Product Lambda to publish inventory events
+        # ========================================================
+
+        - PolicyName: ApplicationEventBridgeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
 
 
   OrderProcessorLambdaRole:
@@ -219,4 +235,3 @@ Outputs:
     Value: !GetAtt ReportLambdaRole.Arn
     Export:
       Name: !Sub CloudMart-${Environment}-ReportLambdaRoleArn
-

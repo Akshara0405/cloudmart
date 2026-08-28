@@ -10,6 +10,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 ssm = boto3.client("ssm")
+events = boto3.client("events")
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 
@@ -17,6 +18,8 @@ DB_HOST_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/host"
 DB_PORT_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/port"
 DB_NAME_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/name"
 DB_USERNAME_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/username"
+
+EVENT_BUS_NAME = os.environ.get("EVENT_BUS_NAME", "default")
 
 
 def get_parameter(name):
@@ -59,7 +62,6 @@ def execute_schema(connection):
     with open(schema_path, "r", encoding="utf-8") as file:
         schema = file.read()
 
-    # Execute each SQL statement from schema.sql
     statements = [
         statement.strip()
         for statement in schema.split(";")
@@ -72,6 +74,57 @@ def execute_schema(connection):
             cursor.execute(statement)
 
     connection.commit()
+
+
+def publish_inventory_event(
+    product_id,
+    stock_count,
+    event_type="InventoryChanged"
+):
+    """
+    Publish inventory changes to EventBridge.
+    EventBridge rules can use this event for low-stock alerts.
+    """
+
+    event_detail = {
+        "product_id": int(product_id),
+        "stock_count": int(stock_count),
+        "environment": ENVIRONMENT
+    }
+
+    response = events.put_events(
+        Entries=[
+            {
+                "EventBusName": EVENT_BUS_NAME,
+                "Source": "cloudmart.product-service",
+                "DetailType": event_type,
+                "Detail": json.dumps(event_detail)
+            }
+        ]
+    )
+
+    if response.get("FailedEntryCount", 0) > 0:
+
+        logger.error(json.dumps({
+            "level": "ERROR",
+            "service": "product-service",
+            "action": "eventbridge_publish_failed",
+            "product_id": product_id,
+            "stock_count": stock_count,
+            "response": response
+        }))
+
+        raise Exception("Failed to publish inventory event to EventBridge")
+
+    logger.info(json.dumps({
+        "level": "INFO",
+        "service": "product-service",
+        "action": "inventory_event_published",
+        "product_id": product_id,
+        "stock_count": stock_count,
+        "event_type": event_type,
+        "event_bus": EVENT_BUS_NAME
+    }))
 
 
 def response(status_code, body):
@@ -98,14 +151,18 @@ def lambda_handler(event, context):
         path_parameters = event.get("pathParameters") or {}
         product_id = path_parameters.get("id")
 
-        # ----------------------------------------------------
-        # TEMPORARY SCHEMA INITIALIZATION
-        # ----------------------------------------------------
-
         body = {}
 
         if event.get("body"):
-            body = json.loads(event["body"])
+
+            if isinstance(event["body"], str):
+                body = json.loads(event["body"])
+            else:
+                body = event["body"]
+
+        # ----------------------------------------------------
+        # TEMPORARY SCHEMA INITIALIZATION
+        # ----------------------------------------------------
 
         if body.get("action") == "init_schema":
 
@@ -193,7 +250,10 @@ def lambda_handler(event, context):
                     }
                 )
 
-            return response(200, product)
+            return response(
+                200,
+                product
+            )
 
         # ----------------------------------------------------
         # POST /products
@@ -213,6 +273,27 @@ def lambda_handler(event, context):
                     400,
                     {
                         "message": "name and price are required"
+                    }
+                )
+
+            try:
+                stock_count = int(stock_count)
+
+                if stock_count < 0:
+
+                    return response(
+                        400,
+                        {
+                            "message": "stock_count cannot be negative"
+                        }
+                    )
+
+            except (TypeError, ValueError):
+
+                return response(
+                    400,
+                    {
+                        "message": "stock_count must be a number"
                     }
                 )
 
@@ -247,6 +328,13 @@ def lambda_handler(event, context):
 
             connection.commit()
 
+            # Publish inventory event after successful database commit
+            publish_inventory_event(
+                product_id=new_product_id,
+                stock_count=stock_count,
+                event_type="InventoryChanged"
+            )
+
             return response(
                 201,
                 {
@@ -266,6 +354,36 @@ def lambda_handler(event, context):
             price = body.get("price")
             category = body.get("category")
             stock_count = body.get("stock_count")
+
+            if stock_count is None:
+
+                return response(
+                    400,
+                    {
+                        "message": "stock_count is required"
+                    }
+                )
+
+            try:
+                stock_count = int(stock_count)
+
+                if stock_count < 0:
+
+                    return response(
+                        400,
+                        {
+                            "message": "stock_count cannot be negative"
+                        }
+                    )
+
+            except (TypeError, ValueError):
+
+                return response(
+                    400,
+                    {
+                        "message": "stock_count must be a number"
+                    }
+                )
 
             with connection.cursor() as cursor:
 
@@ -300,6 +418,13 @@ def lambda_handler(event, context):
                         "message": "Product not found"
                     }
                 )
+
+            # Publish inventory event after successful update
+            publish_inventory_event(
+                product_id=product_id,
+                stock_count=stock_count,
+                event_type="InventoryChanged"
+            )
 
             return response(
                 200,
@@ -357,6 +482,7 @@ def lambda_handler(event, context):
     except Exception as error:
 
         if connection:
+
             connection.rollback()
 
         logger.error(json.dumps({
@@ -377,4 +503,5 @@ def lambda_handler(event, context):
     finally:
 
         if connection:
+
             connection.close()
