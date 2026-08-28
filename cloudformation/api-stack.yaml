@@ -144,7 +144,7 @@ Resources:
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
 
-      code:
+      Code:
         S3Bucket: cloudmart-dev-reports-119408973254-ap-south-1
         S3Key: lambda/product-lambda.zip
   # ============================================================
