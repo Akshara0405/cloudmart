@@ -96,7 +96,7 @@ Resources:
               Fn::ImportValue:
                 Fn::Sub: CloudMart-${Environment}-AuthorizerFunctionArn
 
-      AuthorizerResultTtlInSeconds: 300
+      AuthorizerResultTtlInSeconds: 0
 
 
   # ============================================================
