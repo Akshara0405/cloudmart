@@ -96,7 +96,7 @@ Resources:
               Fn::ImportValue:
                 Fn::Sub: CloudMart-${Environment}-AuthorizerFunctionArn
 
-      AuthorizerResultTtlInSeconds: 0
+      AuthorizerResultTtlInSeconds: 300
 
 
   # ============================================================
@@ -351,7 +351,7 @@ Resources:
   # API GATEWAY DEPLOYMENT
   # ============================================================
 
-  ApiDeployment:
+  ApiDeploymentV2:
     Type: AWS::ApiGateway::Deployment
 
     DependsOn:
@@ -381,7 +381,7 @@ Resources:
         !Ref CloudMartApi
 
       DeploymentId:
-        !Ref ApiDeployment
+        !Ref ApiDeploymentV2
 
       StageName:
         !Ref Environment
