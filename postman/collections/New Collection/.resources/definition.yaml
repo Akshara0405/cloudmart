@@ -1,0 +1,6 @@
+$kind: collection
+name: New Collection
+variables:
+  - key: bearer_token_04mw
+    secret: true
+    disabled: false

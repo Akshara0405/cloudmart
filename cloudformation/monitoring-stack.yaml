@@ -3,7 +3,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   CloudMart Monitoring Stack.
   Creates SNS topic, email subscription, and EventBridge
-  rule for low-stock inventory alerts.
+  rules for low-stock inventory alerts and order confirmation notifications.
 
 Parameters:
 
@@ -16,7 +16,7 @@ Parameters:
 
   AlertEmail:
     Type: String
-    Description: Email address to receive CloudMart low-stock alerts
+    Description: Email address to receive CloudMart alerts
 
 
   LowStockThreshold:
@@ -135,6 +135,112 @@ Resources:
                   !GetAtt InventoryChangeRule.Arn
 
 
+  # ============================================================
+  # ORDER CONFIRMATION SNS TOPIC
+  # ============================================================
+
+  OrderConfirmationTopic:
+    Type: AWS::SNS::Topic
+
+    Properties:
+      TopicName:
+        !Sub CloudMart-${Environment}-OrderConfirmations
+
+      DisplayName:
+        !Sub CloudMart ${Environment} Order Confirmations
+
+
+  # ============================================================
+  # ORDER CONFIRMATION EMAIL SUBSCRIPTION
+  # ============================================================
+
+  OrderConfirmationEmailSubscription:
+    Type: AWS::SNS::Subscription
+
+    Properties:
+      TopicArn:
+        !Ref OrderConfirmationTopic
+
+      Protocol: email
+
+      Endpoint:
+        !Ref AlertEmail
+
+
+  # ============================================================
+  # EVENTBRIDGE RULE
+  # ORDER CONFIRMED → SNS
+  # ============================================================
+
+  OrderConfirmedRule:
+    Type: AWS::Events::Rule
+
+    Properties:
+
+      Name:
+        !Sub CloudMart-${Environment}-OrderConfirmedRule
+
+      Description:
+        !Sub CloudMart ${Environment} order confirmed notification rule
+
+      EventPattern:
+
+        source:
+          - cloudmart.order
+
+        detail-type:
+          - OrderConfirmed
+
+      State: ENABLED
+
+      Targets:
+
+        - Arn:
+            !Ref OrderConfirmationTopic
+
+          Id: OrderConfirmationSNSTarget
+
+
+  # ============================================================
+  # SNS TOPIC POLICY
+  # ALLOWS EVENTBRIDGE TO PUBLISH ORDER CONFIRMATIONS
+  # ============================================================
+
+  OrderConfirmationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+
+    Properties:
+
+      Topics:
+        - !Ref OrderConfirmationTopic
+
+      PolicyDocument:
+
+        Version: '2012-10-17'
+
+        Statement:
+
+          - Sid: AllowEventBridgePublish
+
+            Effect: Allow
+
+            Principal:
+              Service: events.amazonaws.com
+
+            Action:
+              - sns:Publish
+
+            Resource:
+              !Ref OrderConfirmationTopic
+
+            Condition:
+
+              ArnEquals:
+
+                aws:SourceArn:
+                  !GetAtt OrderConfirmedRule.Arn
+
+
 Outputs:
 
   # ============================================================
@@ -165,3 +271,19 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-InventoryChangeRuleArn
+
+
+  # ============================================================
+  # ORDER CONFIRMATION SNS TOPIC ARN
+  # ============================================================
+
+  OrderConfirmationTopicArn:
+    Description: SNS topic ARN for CloudMart order confirmation notifications
+
+    Value:
+      !Ref OrderConfirmationTopic
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrderConfirmationTopicArn
+

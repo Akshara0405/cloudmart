@@ -3,7 +3,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   CloudMart API Stack.
   Creates API Gateway, Lambda Authorizer integration,
-  Product Service Lambda, and Product API endpoints.
+  Product Service Lambda, Order Processor Lambda,
+  and Product API endpoints.
 
 Parameters:
 
@@ -13,6 +14,7 @@ Parameters:
     AllowedValues:
       - dev
       - prod
+
 
 Resources:
 
@@ -125,12 +127,14 @@ Resources:
 
       Environment:
         Variables:
+
           ENVIRONMENT:
             !Ref Environment
 
           DB_PASSWORD:
             Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-DBPasswordParameter
+
       VpcConfig:
 
         SecurityGroupIds:
@@ -147,6 +151,60 @@ Resources:
       Code:
         S3Bucket: cloudmart-dev-reports-119408973254-ap-south-1
         S3Key: lambda/product-lambda.zip
+
+
+  # ============================================================
+  # ORDER PROCESSOR LAMBDA
+  # ============================================================
+
+  OrderProcessorLambda:
+    Type: AWS::Lambda::Function
+
+    Properties:
+
+      FunctionName:
+        !Sub CloudMart-${Environment}-OrderProcessor
+
+      Runtime: python3.12
+
+      Handler: index.lambda_handler
+
+      Role:
+        Fn::ImportValue:
+          Fn::Sub: CloudMart-${Environment}-OrderProcessorLambdaRoleArn
+
+      Timeout: 30
+
+      MemorySize: 128
+
+      Environment:
+        Variables:
+
+          ENVIRONMENT:
+            !Ref Environment
+
+          DB_PASSWORD:
+            Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-DBPasswordParameter
+
+      VpcConfig:
+
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-LambdaSecurityGroupId
+
+        SubnetIds:
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
+
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
+
+      Code:
+        S3Bucket: cloudmart-dev-reports-119408973254-ap-south-1
+        S3Key: lambda/order-processor.zip
+
+
   # ============================================================
   # API GATEWAY PERMISSION TO INVOKE PRODUCT LAMBDA
   # ============================================================
@@ -410,10 +468,6 @@ Outputs:
     Value:
       !Sub https://${CloudMartApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
 
-    Export:
-      Name:
-        !Sub CloudMart-${Environment}-ApiUrl
-
 
   ProductLambdaArn:
     Description: CloudMart Product Service Lambda ARN
@@ -424,6 +478,17 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-ProductLambdaArn
+
+
+  OrderProcessorLambdaArn:
+    Description: CloudMart Order Processor Lambda ARN
+
+    Value:
+      !GetAtt OrderProcessorLambda.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrderProcessorLambdaArn
 
 
   AuthorizerId:
