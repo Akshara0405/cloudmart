@@ -1,0 +1,23 @@
+$kind: http-request
+name: https://vwt7ty58ol.execute-api.ap-south-1.amazonaws.com/dev
+description: ""
+url: https://vwt7ty58ol.execute-api.ap-south-1.amazonaws.com/dev/orders/2
+method: GET
+headers:
+  Content-Type: Application/json
+body:
+  type: json
+  content: "{\r
+
+    \  \"product_id\": 2,\r
+
+    \  \"customer_id\": \"CUST001\",\r
+
+    \  \"quantity\": 1\r
+
+    }                                                                                                                                                                                                                                                                        "
+auth:
+  type: bearer
+  credentials:
+    token: CMdevAuthToken2026SecureX9
+order: 1788329247918
