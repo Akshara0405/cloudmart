@@ -12,6 +12,7 @@ logger.setLevel(logging.INFO)
 ssm = boto3.client("ssm")
 events = boto3.client("events")
 
+
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 
 DB_HOST_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/host"
@@ -115,7 +116,9 @@ def publish_inventory_event(
             "response": response
         }))
 
-        raise Exception("Failed to publish inventory event to EventBridge")
+        raise Exception(
+            "Failed to publish inventory event to EventBridge"
+        )
 
     logger.info(json.dumps({
         "level": "INFO",
@@ -268,16 +271,25 @@ def lambda_handler(event, context):
             category = body.get("category")
             stock_count = body.get("stock_count", 0)
 
-            if not name or price is None:
-
+            # Name and price are required for creating a product
+            if not name:
                 return response(
                     400,
                     {
-                        "message": "name and price are required"
+                        "message": "name is required"
+                    }
+                )
+
+            if price is None:
+                return response(
+                    400,
+                    {
+                        "message": "price is required"
                     }
                 )
 
             try:
+
                 stock_count = int(stock_count)
 
                 if stock_count < 0:
@@ -356,6 +368,17 @@ def lambda_handler(event, context):
             category = body.get("category")
             stock_count = body.get("stock_count")
 
+            # Name is required when updating a product
+            if not name:
+
+                return response(
+                    400,
+                    {
+                        "message": "name is required"
+                    }
+                )
+
+            # Stock count is required when updating a product
             if stock_count is None:
 
                 return response(
@@ -366,6 +389,7 @@ def lambda_handler(event, context):
                 )
 
             try:
+
                 stock_count = int(stock_count)
 
                 if stock_count < 0:
@@ -483,7 +507,6 @@ def lambda_handler(event, context):
     except Exception as error:
 
         if connection:
-
             connection.rollback()
 
         logger.error(json.dumps({
@@ -504,5 +527,4 @@ def lambda_handler(event, context):
     finally:
 
         if connection:
-
             connection.close()
