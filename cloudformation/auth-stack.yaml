@@ -23,7 +23,7 @@ Resources:
 
     Properties:
       Name:
-        !Sub /cloudmart/${Environment}/auth/token
+        !Sub /cloudmart/${Environment}/auth/token 
 
       Type: String
 

@@ -1,5 +1,5 @@
 $kind: collection
-name: New Collection
+name: API requests
 variables:
   - key: bearer_token_04mw
     secret: true

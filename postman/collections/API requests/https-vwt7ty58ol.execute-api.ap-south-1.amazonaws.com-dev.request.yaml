@@ -1,0 +1,27 @@
+$kind: http-request
+name: https://vwt7ty58ol.execute-api.ap-south-1.amazonaws.com/dev
+description: ""
+url: https://hrl5jhqo44.execute-api.ap-south-1.amazonaws.com/dev/products
+method: GET
+body:
+  type: json
+  content: "{\r
+
+    \  \"id\": 12,\r
+
+    \  \"name\": \"Wireless charger\",\r
+
+    \  \"description\": \"Ergonomic wireless charger\",\r
+
+    \  \"price\": 999.00,\r
+
+    \  \"category\": \"Electronics\",\r
+
+    \  \"stock_count\": 27\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: CMdevAuthToken2026SecureX9
+order: 1788329247918
