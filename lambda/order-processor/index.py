@@ -1,3 +1,4 @@
+
 import json
 import logging
 import os
@@ -27,7 +28,6 @@ events = boto3.client("events")
 # ============================================================
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
-
 
 DB_HOST_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/host"
 DB_PORT_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/port"
@@ -203,22 +203,12 @@ def create_order(event):
                 }
             )
 
-        product_id = request.get("product_id")
         customer_id = request.get("customer_id")
-        quantity = request.get("quantity")
+        items = request.get("items")
 
         # ----------------------------------------------------
-        # VALIDATE REQUIRED FIELDS
+        # VALIDATE CUSTOMER
         # ----------------------------------------------------
-
-        if product_id is None:
-
-            return response(
-                400,
-                {
-                    "message": "product_id is required"
-                }
-            )
 
         if customer_id is None or str(customer_id).strip() == "":
 
@@ -229,50 +219,126 @@ def create_order(event):
                 }
             )
 
-        if quantity is None:
+        # ----------------------------------------------------
+        # VALIDATE ITEMS
+        # ----------------------------------------------------
+
+        if items is None:
 
             return response(
                 400,
                 {
-                    "message": "quantity is required"
+                    "message": "items is required"
+                }
+            )
+
+        if not isinstance(items, list):
+
+            return response(
+                400,
+                {
+                    "message": "items must be an array"
+                }
+            )
+
+        if len(items) == 0:
+
+            return response(
+                400,
+                {
+                    "message": "items must contain at least one product"
                 }
             )
 
         # ----------------------------------------------------
-        # VALIDATE NUMERIC VALUES
+        # VALIDATE EVERY ITEM
         # ----------------------------------------------------
 
-        try:
+        validated_items = []
 
-            product_id = int(product_id)
-            quantity = int(quantity)
+        for index, item in enumerate(items):
 
-        except (TypeError, ValueError):
+            if not isinstance(item, dict):
 
-            return response(
-                400,
-                {
-                    "message": "product_id and quantity must be numbers"
-                }
-            )
+                return response(
+                    400,
+                    {
+                        "message": f"Item {index + 1} must be an object"
+                    }
+                )
 
-        if product_id <= 0:
+            product_id = item.get("product_id")
+            quantity = item.get("quantity")
 
-            return response(
-                400,
-                {
-                    "message": "product_id must be greater than zero"
-                }
-            )
+            if product_id is None:
 
-        if quantity <= 0:
+                return response(
+                    400,
+                    {
+                        "message": (
+                            f"product_id is required "
+                            f"for item {index + 1}"
+                        )
+                    }
+                )
 
-            return response(
-                400,
-                {
-                    "message": "quantity must be greater than zero"
-                }
-            )
+            if quantity is None:
+
+                return response(
+                    400,
+                    {
+                        "message": (
+                            f"quantity is required "
+                            f"for item {index + 1}"
+                        )
+                    }
+                )
+
+            try:
+
+                product_id = int(product_id)
+                quantity = int(quantity)
+
+            except (TypeError, ValueError):
+
+                return response(
+                    400,
+                    {
+                        "message": (
+                            "product_id and quantity must be numbers "
+                            f"for item {index + 1}"
+                        )
+                    }
+                )
+
+            if product_id <= 0:
+
+                return response(
+                    400,
+                    {
+                        "message": (
+                            "product_id must be greater than zero "
+                            f"for item {index + 1}"
+                        )
+                    }
+                )
+
+            if quantity <= 0:
+
+                return response(
+                    400,
+                    {
+                        "message": (
+                            "quantity must be greater than zero "
+                            f"for item {index + 1}"
+                        )
+                    }
+                )
+
+            validated_items.append({
+                "product_id": product_id,
+                "quantity": quantity
+            })
 
         # ----------------------------------------------------
         # CONNECT TO DATABASE
@@ -314,17 +380,11 @@ def create_order(event):
                     "customer_id": customer_id
                 }))
 
-                # ------------------------------------------------
-                # PUBLISH ORDER FAILED EVENT
-                # ------------------------------------------------
-
                 publish_order_event(
                     "OrderFailed",
                     {
                         "reason": "customer_not_found",
-                        "customer_id": customer_id,
-                        "product_id": product_id,
-                        "quantity": quantity
+                        "customer_id": customer_id
                     }
                 )
 
@@ -336,154 +396,186 @@ def create_order(event):
                 )
 
             # =================================================
-            # LOCK PRODUCT ROW
+            # CHECK ALL PRODUCTS AND STOCK
             # =================================================
 
-            cursor.execute(
-                """
-                SELECT
-                    id,
-                    name,
-                    description,
-                    price,
-                    category,
-                    stock_count
-                FROM products
-                WHERE id = %s
-                AND is_deleted = FALSE
-                FOR UPDATE
-                """,
-                (product_id,)
-            )
+            processed_items = []
 
-            product = cursor.fetchone()
+            for item in validated_items:
 
-            if not product:
+                product_id = item["product_id"]
+                quantity = item["quantity"]
 
-                connection.rollback()
+                cursor.execute(
+                    """
+                    SELECT
+                        id,
+                        name,
+                        description,
+                        price,
+                        category,
+                        stock_count
+                    FROM products
+                    WHERE id = %s
+                    AND is_deleted = FALSE
+                    FOR UPDATE
+                    """,
+                    (product_id,)
+                )
 
-                logger.warning(json.dumps({
-                    "level": "WARN",
-                    "service": "order-processor",
-                    "action": "order_failed",
-                    "reason": "product_not_found",
-                    "product_id": product_id
-                }))
+                product = cursor.fetchone()
 
-                # ------------------------------------------------
-                # PUBLISH ORDER FAILED EVENT
-                # ------------------------------------------------
+                if not product:
 
-                publish_order_event(
-                    "OrderFailed",
-                    {
+                    connection.rollback()
+
+                    logger.warning(json.dumps({
+                        "level": "WARN",
+                        "service": "order-processor",
+                        "action": "order_failed",
                         "reason": "product_not_found",
                         "customer_id": customer_id,
                         "product_id": product_id,
                         "quantity": quantity
-                    }
-                )
+                    }))
 
-                return response(
-                    404,
-                    {
-                        "message": "Product not found"
-                    }
-                )
+                    publish_order_event(
+                        "OrderFailed",
+                        {
+                            "reason": "product_not_found",
+                            "customer_id": customer_id,
+                            "product_id": product_id,
+                            "quantity": quantity
+                        }
+                    )
 
-            # =================================================
-            # CHECK STOCK
-            # =================================================
+                    return response(
+                        404,
+                        {
+                            "message": "Product not found",
+                            "product_id": product_id
+                        }
+                    )
 
-            current_stock = int(product["stock_count"])
+                current_stock = int(product["stock_count"])
 
-            if current_stock < quantity:
+                if current_stock < quantity:
 
-                connection.rollback()
+                    connection.rollback()
 
-                logger.warning(json.dumps({
-                    "level": "WARN",
-                    "service": "order-processor",
-                    "action": "order_failed",
-                    "reason": "insufficient_stock",
-                    "product_id": product_id,
-                    "customer_id": customer_id,
-                    "requested_quantity": quantity,
-                    "available_stock": current_stock
-                }))
-
-                # ------------------------------------------------
-                # PUBLISH ORDER FAILED EVENT
-                # ------------------------------------------------
-
-                publish_order_event(
-                    "OrderFailed",
-                    {
+                    logger.warning(json.dumps({
+                        "level": "WARN",
+                        "service": "order-processor",
+                        "action": "order_failed",
                         "reason": "insufficient_stock",
-                        "customer_id": customer_id,
                         "product_id": product_id,
-                        "quantity": quantity,
+                        "customer_id": customer_id,
+                        "requested_quantity": quantity,
                         "available_stock": current_stock
-                    }
-                )
+                    }))
 
-                return response(
-                    409,
-                    {
-                        "message": "Insufficient stock",
-                        "available_stock": current_stock,
-                        "requested_quantity": quantity
-                    }
-                )
+                    publish_order_event(
+                        "OrderFailed",
+                        {
+                            "reason": "insufficient_stock",
+                            "customer_id": customer_id,
+                            "product_id": product_id,
+                            "quantity": quantity,
+                            "available_stock": current_stock
+                        }
+                    )
+
+                    return response(
+                        409,
+                        {
+                            "message": "Insufficient stock",
+                            "product_id": product_id,
+                            "available_stock": current_stock,
+                            "requested_quantity": quantity
+                        }
+                    )
+
+                new_stock = current_stock - quantity
+
+                processed_items.append({
+                    "product_id": product_id,
+                    "product_name": product["name"],
+                    "quantity": quantity,
+                    "price": product["price"],
+                    "stock_remaining": new_stock
+                })
 
             # =================================================
-            # CREATE ORDER
+            # CREATE ONE ORDER
             # =================================================
 
             cursor.execute(
                 """
                 INSERT INTO orders
                 (
-                    product_id,
                     customer_id,
-                    quantity,
                     status
                 )
                 VALUES
                 (
                     %s,
-                    %s,
-                    %s,
                     'pending'
                 )
                 """,
                 (
-                    product_id,
-                    customer_id,
-                    quantity
+                    customer_id
                 )
             )
 
             order_id = cursor.lastrowid
 
             # =================================================
-            # DEDUCT INVENTORY
+            # CREATE ORDER ITEMS + DEDUCT INVENTORY
             # =================================================
 
-            new_stock = current_stock - quantity
+            for item in processed_items:
 
-            cursor.execute(
-                """
-                UPDATE products
-                SET stock_count = %s
-                WHERE id = %s
-                AND is_deleted = FALSE
-                """,
-                (
-                    new_stock,
-                    product_id
+                cursor.execute(
+                    """
+                    INSERT INTO order_items
+                    (
+                        order_id,
+                        product_id,
+                        quantity,
+                        price
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                    """,
+                    (
+                        order_id,
+                        item["product_id"],
+                        item["quantity"],
+                        item["price"]
+                    )
                 )
-            )
+
+                # ------------------------------------------------
+                # DEDUCT INVENTORY
+                # ------------------------------------------------
+
+                cursor.execute(
+                    """
+                    UPDATE products
+                    SET stock_count = %s
+                    WHERE id = %s
+                    AND is_deleted = FALSE
+                    """,
+                    (
+                        item["stock_remaining"],
+                        item["product_id"]
+                    )
+                )
 
             # =================================================
             # CONFIRM ORDER
@@ -510,10 +602,8 @@ def create_order(event):
             "service": "order-processor",
             "action": "order_confirmed",
             "order_id": order_id,
-            "product_id": product_id,
             "customer_id": customer_id,
-            "quantity": quantity,
-            "stock_remaining": new_stock
+            "item_count": len(processed_items)
         }))
 
         # ====================================================
@@ -524,24 +614,24 @@ def create_order(event):
             "OrderConfirmed",
             {
                 "order_id": order_id,
-                "product_id": product_id,
                 "customer_id": customer_id,
-                "quantity": quantity,
                 "status": "confirmed",
-                "stock_remaining": new_stock
+                "items": processed_items
             }
         )
+
+        # ====================================================
+        # RESPONSE
+        # ====================================================
 
         return response(
             201,
             {
                 "message": "Order confirmed successfully",
                 "order_id": order_id,
-                "product_id": product_id,
                 "customer_id": customer_id,
-                "quantity": quantity,
                 "status": "confirmed",
-                "stock_remaining": new_stock
+                "items": processed_items
             }
         )
 
@@ -628,28 +718,25 @@ def get_order_by_id(event):
 
         with connection.cursor() as cursor:
 
+            # ------------------------------------------------
+            # GET ORDER
+            # ------------------------------------------------
+
             cursor.execute(
                 """
                 SELECT
                     o.id AS order_id,
-                    o.product_id,
-                    p.name AS product_name,
-                    p.price AS product_price,
                     o.customer_id,
                     c.name AS customer_name,
                     c.email AS customer_email,
-                    o.quantity,
                     o.status,
                     o.created_at,
-                    o.updated_at
+                    o.updated_at,
+                    o.deleted_at,
+                    o.is_deleted
                 FROM orders o
-
-                INNER JOIN products p
-                    ON o.product_id = p.id
-
                 INNER JOIN customers c
                     ON o.customer_id = c.customer_id
-
                 WHERE o.id = %s
                 AND o.is_deleted = FALSE
                 """,
@@ -658,14 +745,41 @@ def get_order_by_id(event):
 
             order = cursor.fetchone()
 
-        if not order:
+            if not order:
 
-            return response(
-                404,
-                {
-                    "message": "Order not found"
-                }
+                return response(
+                    404,
+                    {
+                        "message": "Order not found"
+                    }
+                )
+
+            # ------------------------------------------------
+            # GET ORDER ITEMS
+            # ------------------------------------------------
+
+            cursor.execute(
+                """
+                SELECT
+                    oi.id AS order_item_id,
+                    oi.product_id,
+                    p.name AS product_name,
+                    oi.quantity,
+                    oi.price,
+                    oi.created_at
+                FROM order_items oi
+                INNER JOIN products p
+                    ON oi.product_id = p.id
+                WHERE oi.order_id = %s
+                AND oi.is_deleted = FALSE
+                ORDER BY oi.id
+                """,
+                (order_id,)
             )
+
+            items = cursor.fetchall()
+
+        order["items"] = items
 
         return response(
             200,
@@ -759,42 +873,80 @@ def get_orders_by_customer(event):
                 )
 
             # ------------------------------------------------
-            # GET CUSTOMER ORDERS
+            # GET ORDERS + ITEMS
             # ------------------------------------------------
 
             cursor.execute(
                 """
                 SELECT
                     o.id AS order_id,
-                    o.product_id,
-                    p.name AS product_name,
-                    p.price AS product_price,
                     o.customer_id,
-                    o.quantity,
                     o.status,
                     o.created_at,
-                    o.updated_at
+                    o.updated_at,
+
+                    oi.id AS order_item_id,
+                    oi.product_id,
+                    p.name AS product_name,
+                    oi.quantity,
+                    oi.price
+
                 FROM orders o
 
+                INNER JOIN order_items oi
+                    ON o.id = oi.order_id
+
                 INNER JOIN products p
-                    ON o.product_id = p.id
+                    ON oi.product_id = p.id
 
                 WHERE o.customer_id = %s
                 AND o.is_deleted = FALSE
+                AND oi.is_deleted = FALSE
 
-                ORDER BY o.created_at DESC
+                ORDER BY o.created_at DESC, oi.id
                 """,
                 (customer_id,)
             )
 
-            orders = cursor.fetchall()
+            rows = cursor.fetchall()
+
+        # ----------------------------------------------------
+        # GROUP ITEMS UNDER EACH ORDER
+        # ----------------------------------------------------
+
+        orders = {}
+
+        for row in rows:
+
+            order_id = row["order_id"]
+
+            if order_id not in orders:
+
+                orders[order_id] = {
+                    "order_id": row["order_id"],
+                    "customer_id": row["customer_id"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "items": []
+                }
+
+            orders[order_id]["items"].append({
+                "order_item_id": row["order_item_id"],
+                "product_id": row["product_id"],
+                "product_name": row["product_name"],
+                "quantity": row["quantity"],
+                "price": row["price"]
+            })
+
+        order_list = list(orders.values())
 
         return response(
             200,
             {
                 "customer_id": customer_id,
-                "orders": orders,
-                "count": len(orders)
+                "orders": order_list,
+                "count": len(order_list)
             }
         )
 
