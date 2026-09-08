@@ -1,3 +1,4 @@
+
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: CloudMart Authentication Stack
@@ -16,14 +17,19 @@ Parameters:
     NoEcho: true
     MinLength: 16
 
+  AdminToken:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+
 Resources:
 
-  AuthTokenParameter:
+  CustomerTokenParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
       Name:
-        !Sub /cloudmart/${Environment}/auth/token
+        !Sub /cloudmart/${Environment}/auth/customer-token
 
       Type: String
 
@@ -31,11 +37,32 @@ Resources:
         !Ref AuthToken
 
       Description:
-        CloudMart authentication token
+        CloudMart customer authentication token
 
       Tags:
         Environment: !Ref Environment
         Application: CloudMart
+        Role: CUSTOMER
+
+  AdminTokenParameter:
+    Type: AWS::SSM::Parameter
+
+    Properties:
+      Name:
+        !Sub /cloudmart/${Environment}/auth/admin-token
+
+      Type: String
+
+      Value:
+        !Ref AdminToken
+
+      Description:
+        CloudMart admin authentication token
+
+      Tags:
+        Environment: !Ref Environment
+        Application: CloudMart
+        Role: ADMIN
 
   AuthorizerLambda:
     Type: AWS::Lambda::Function
@@ -73,8 +100,12 @@ Resources:
       Environment:
 
         Variables:
-          AUTH_TOKEN_PARAMETER:
-            !Sub /cloudmart/${Environment}/auth/token
+
+          CUSTOMER_TOKEN_PARAMETER:
+            !Sub /cloudmart/${Environment}/auth/customer-token
+
+          ADMIN_TOKEN_PARAMETER:
+            !Sub /cloudmart/${Environment}/auth/admin-token
 
       Code:
 
@@ -85,11 +116,17 @@ Resources:
 
           ssm = boto3.client("ssm")
 
-          TOKEN_PARAMETER = os.environ["AUTH_TOKEN_PARAMETER"]
+          CUSTOMER_TOKEN_PARAMETER = os.environ[
+              "CUSTOMER_TOKEN_PARAMETER"
+          ]
 
-          def get_expected_token():
+          ADMIN_TOKEN_PARAMETER = os.environ[
+              "ADMIN_TOKEN_PARAMETER"
+          ]
+
+          def get_token(parameter_name):
               response = ssm.get_parameter(
-                  Name=TOKEN_PARAMETER,
+                  Name=parameter_name,
                   WithDecryption=True
               )
 
@@ -110,14 +147,34 @@ Resources:
                   }
               }
 
-          def build_wildcard_resource(method_arn):
+          def build_method_resource(method_arn):
+              return method_arn
+
+          def build_stage_resource(method_arn):
               arn_parts = method_arn.split(":")
               api_gateway_arn = arn_parts[5]
-              api_id, stage = api_gateway_arn.split("/")[0:2]
+
+              parts = api_gateway_arn.split("/")
+
+              api_id = parts[0]
+              stage = parts[1]
+
               return (
                   f"{':'.join(arn_parts[0:5])}:"
                   f"{api_id}/{stage}/*/*"
               )
+
+          def is_customer_allowed(method, path):
+              if method == "GET" and path.startswith("/products"):
+                  return True
+
+              if method == "POST" and path == "/orders":
+                  return True
+
+              if method == "GET" and path.startswith("/orders"):
+                  return True
+
+              return False
 
           def lambda_handler(event, context):
 
@@ -134,20 +191,57 @@ Resources:
               if not provided_token:
                   raise Exception("Unauthorized")
 
-              expected_token = get_expected_token()
+              customer_token = get_token(
+                  CUSTOMER_TOKEN_PARAMETER
+              )
 
-              if provided_token != expected_token:
+              admin_token = get_token(
+                  ADMIN_TOKEN_PARAMETER
+              )
+
+              method_arn = event["methodArn"]
+
+              arn_parts = method_arn.split(":")
+              api_gateway_arn = arn_parts[5]
+              path_parts = api_gateway_arn.split("/")
+
+              if len(path_parts) < 4:
                   raise Exception("Unauthorized")
 
-              resource = build_wildcard_resource(
-                  event["methodArn"]
-              )
+              method = path_parts[2]
+              path = "/" + "/".join(path_parts[3:])
 
-              return generate_policy(
-                  "cloudmart-user",
-                  "Allow",
-                  resource
-              )
+              if provided_token == admin_token:
+
+                  resource = build_stage_resource(
+                      method_arn
+                  )
+
+                  return generate_policy(
+                      "cloudmart-admin",
+                      "Allow",
+                      resource
+                  )
+
+              if provided_token == customer_token:
+
+                  if is_customer_allowed(
+                      method,
+                      path
+                  ):
+                      resource = build_method_resource(
+                          method_arn
+                      )
+
+                      return generate_policy(
+                          "cloudmart-customer",
+                          "Allow",
+                          resource
+                      )
+
+                  raise Exception("Unauthorized")
+
+              raise Exception("Unauthorized")
 
       Tags:
 
@@ -196,21 +290,39 @@ Outputs:
       Name:
         !Sub CloudMart-${Environment}-AuthorizerFunctionInvokeArn
 
-  AuthTokenParameterName:
-    Description: SSM authentication token parameter
+  CustomerTokenParameterName:
+    Description: SSM customer authentication token parameter
     Value:
-      !Ref AuthTokenParameter
+      !Ref CustomerTokenParameter
 
     Export:
       Name:
-        !Sub CloudMart-${Environment}-AuthTokenParameterName
+        !Sub CloudMart-${Environment}-CustomerTokenParameterName
 
-  AuthTokenParameterArn:
-    Description: SSM authentication token parameter ARN
+  CustomerTokenParameterArn:
+    Description: SSM customer authentication token parameter ARN
     Value:
-      !GetAtt AuthTokenParameter.Arn
+      !GetAtt CustomerTokenParameter.Arn
 
     Export:
       Name:
-        !Sub CloudMart-${Environment}-AuthTokenParameterArn
+        !Sub CloudMart-${Environment}-CustomerTokenParameterArn
+
+  AdminTokenParameterName:
+    Description: SSM admin authentication token parameter
+    Value:
+      !Ref AdminTokenParameter
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-AdminTokenParameterName
+
+  AdminTokenParameterArn:
+    Description: SSM admin authentication token parameter ARN
+    Value:
+      !GetAtt AdminTokenParameter.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-AdminTokenParameterArn
 

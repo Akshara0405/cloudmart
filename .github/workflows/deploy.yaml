@@ -262,6 +262,7 @@ jobs:
             --parameter-overrides \
               Environment=dev \
               AuthToken="${{ secrets.CLOUDMART_AUTH_TOKEN }}" \
+              AdminToken="${{ secrets.CLOUDMART_ADMIN_TOKEN }}" \
             --no-fail-on-empty-changeset
 
       - name: Check Auth Stack Status
