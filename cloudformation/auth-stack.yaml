@@ -23,7 +23,7 @@ Resources:
 
     Properties:
       Name:
-        !Sub /cloudmart/${Environment}/auth/token 
+        !Sub /cloudmart/${Environment}/auth/token
 
       Type: String
 
@@ -36,7 +36,6 @@ Resources:
       Tags:
         Environment: !Ref Environment
         Application: CloudMart
-
 
   AuthorizerLambda:
     Type: AWS::Lambda::Function
@@ -115,11 +114,17 @@ Resources:
               arn_parts = method_arn.split(":")
               api_gateway_arn = arn_parts[5]
               api_id, stage = api_gateway_arn.split("/")[0:2]
-              return f"{':'.join(arn_parts[0:5])}:{api_id}/{stage}/*/*"
+              return (
+                  f"{':'.join(arn_parts[0:5])}:"
+                  f"{api_id}/{stage}/*/*"
+              )
 
           def lambda_handler(event, context):
 
-              authorization_header = event.get("authorizationToken", "")
+              authorization_header = event.get(
+                  "authorizationToken",
+                  ""
+              )
 
               if not authorization_header.startswith("Bearer "):
                   raise Exception("Unauthorized")
@@ -134,7 +139,9 @@ Resources:
               if provided_token != expected_token:
                   raise Exception("Unauthorized")
 
-              resource = build_wildcard_resource(event["methodArn"])
+              resource = build_wildcard_resource(
+                  event["methodArn"]
+              )
 
               return generate_policy(
                   "cloudmart-user",
@@ -153,7 +160,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-
   AuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
 
@@ -168,7 +174,6 @@ Resources:
       Principal:
         apigateway.amazonaws.com
 
-
 Outputs:
 
   AuthorizerFunctionArn:
@@ -180,16 +185,16 @@ Outputs:
       Name:
         !Sub CloudMart-${Environment}-AuthorizerFunctionArn
 
-
   AuthorizerFunctionInvokeArn:
     Description: CloudMart Lambda Authorizer invoke ARN
     Value:
-      !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerLambda.Arn}/invocations
+      !Sub
+        - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerArn}/invocations
+        - AuthorizerArn: !GetAtt AuthorizerLambda.Arn
 
     Export:
       Name:
         !Sub CloudMart-${Environment}-AuthorizerFunctionInvokeArn
-
 
   AuthTokenParameterName:
     Description: SSM authentication token parameter
@@ -199,7 +204,6 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-AuthTokenParameterName
-
 
   AuthTokenParameterArn:
     Description: SSM authentication token parameter ARN
