@@ -501,7 +501,7 @@ def create_order(event):
                     "product_id": product_id,
                     "product_name": product["name"],
                     "quantity": quantity,
-                    "price": product["price"],
+                    "price": float(product["price"]),
                     "stock_remaining": new_stock
                 })
 
