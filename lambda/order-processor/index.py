@@ -217,6 +217,26 @@ def get_request_body(event):
 
 
 # ============================================================
+# AUTHORIZATION CONTEXT
+# ============================================================
+
+def get_authorization_context(event):
+
+    authorizer = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+    )
+
+    role = str(
+        authorizer.get("role", "")
+    ).strip().lower()
+
+    customer_id = authorizer.get("customer_id")
+
+    return role, customer_id
+
+
+# ============================================================
 # POST /orders
 # ============================================================
 
@@ -251,6 +271,60 @@ def create_order(event):
 
         customer_id = request.get("customer_id")
         items = request.get("items")
+
+        # ----------------------------------------------------
+        # GET AUTHORIZATION CONTEXT
+        # ----------------------------------------------------
+
+        role, authenticated_customer_id = get_authorization_context(event)
+
+        # ----------------------------------------------------
+        # VERIFY AUTHENTICATED CUSTOMER
+        # ----------------------------------------------------
+
+        if role == "customer":
+
+            if authenticated_customer_id is None:
+
+                return response(
+                    403,
+                    {
+                        "message": (
+                            "Customer identity is missing "
+                            "from authorization context"
+                        )
+                    }
+                )
+
+            if customer_id is None or str(customer_id).strip() == "":
+
+                return response(
+                    400,
+                    {
+                        "message": "customer_id is required"
+                    }
+                )
+
+            if str(customer_id) != str(authenticated_customer_id):
+
+                logger.warning(json.dumps({
+                    "level": "WARN",
+                    "service": "order-processor",
+                    "action": "order_failed",
+                    "reason": "customer_identity_mismatch",
+                    "authenticated_customer_id": authenticated_customer_id,
+                    "requested_customer_id": customer_id
+                }))
+
+                return response(
+                    403,
+                    {
+                        "message": (
+                            "You are not allowed to create an order "
+                            "for another customer"
+                        )
+                    }
+                )
 
         # ----------------------------------------------------
         # VALIDATE CUSTOMER
@@ -381,7 +455,10 @@ def create_order(event):
                     }
                 )
 
-            # Combine duplicate products
+            # ------------------------------------------------
+            # COMBINE DUPLICATE PRODUCTS
+            # ------------------------------------------------
+
             if product_id in items_by_product:
 
                 items_by_product[product_id] += quantity
@@ -740,46 +817,141 @@ def cancel_order(event):
         order_id = path_parameters.get("id")
 
         if order_id is None:
-            return response(400, {
-                "message": "Order id is required"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "Order id is required"
+                }
+            )
 
         try:
+
             order_id = int(order_id)
+
         except (TypeError, ValueError):
-            return response(400, {
-                "message": "Order id must be a number"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "Order id must be a number"
+                }
+            )
 
         if order_id <= 0:
-            return response(400, {
-                "message": "Order id must be greater than zero"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "Order id must be greater than zero"
+                }
+            )
 
         try:
+
             request = get_request_body(event)
+
         except json.JSONDecodeError:
-            return response(400, {
-                "message": "Request body must contain valid JSON"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "Request body must contain valid JSON"
+                }
+            )
 
         customer_id = request.get("customer_id")
         status = request.get("status")
 
+        # ----------------------------------------------------
+        # GET AUTHORIZATION CONTEXT
+        # ----------------------------------------------------
+
+        role, authenticated_customer_id = get_authorization_context(event)
+
+        # ----------------------------------------------------
+        # VERIFY AUTHENTICATED CUSTOMER
+        # ----------------------------------------------------
+
+        if role == "customer":
+
+            if authenticated_customer_id is None:
+
+                return response(
+                    403,
+                    {
+                        "message": (
+                            "Customer identity is missing "
+                            "from authorization context"
+                        )
+                    }
+                )
+
+            if customer_id is None or str(customer_id).strip() == "":
+
+                return response(
+                    400,
+                    {
+                        "message": "customer_id is required"
+                    }
+                )
+
+            if str(customer_id) != str(authenticated_customer_id):
+
+                logger.warning(json.dumps({
+                    "level": "WARN",
+                    "service": "order-processor",
+                    "action": "order_cancellation_failed",
+                    "reason": "customer_identity_mismatch",
+                    "authenticated_customer_id": authenticated_customer_id,
+                    "requested_customer_id": customer_id,
+                    "order_id": order_id
+                }))
+
+                return response(
+                    403,
+                    {
+                        "message": (
+                            "You are not allowed to cancel "
+                            "another customer's order"
+                        )
+                    }
+                )
+
+        # ----------------------------------------------------
+        # VALIDATE CUSTOMER
+        # ----------------------------------------------------
+
         if customer_id is None or str(customer_id).strip() == "":
-            return response(400, {
-                "message": "customer_id is required"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "customer_id is required"
+                }
+            )
+
+        # ----------------------------------------------------
+        # VALIDATE STATUS
+        # ----------------------------------------------------
 
         if status is None:
-            return response(400, {
-                "message": "status is required"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "status is required"
+                }
+            )
 
         if str(status).strip().lower() != "cancelled":
-            return response(400, {
-                "message": "status must be cancelled"
-            })
+
+            return response(
+                400,
+                {
+                    "message": "status must be cancelled"
+                }
+            )
 
         connection = get_db_connection()
 
@@ -808,20 +980,30 @@ def cancel_order(event):
             order = cursor.fetchone()
 
             if not order:
+
                 connection.rollback()
-                return response(404, {
-                    "message": "Order not found"
-                })
+
+                return response(
+                    404,
+                    {
+                        "message": "Order not found"
+                    }
+                )
 
             # ------------------------------------------------
             # VERIFY CUSTOMER OWNS ORDER
             # ------------------------------------------------
 
             if str(order["customer_id"]) != str(customer_id):
+
                 connection.rollback()
-                return response(403, {
-                    "message": "You are not allowed to cancel this order"
-                })
+
+                return response(
+                    403,
+                    {
+                        "message": "You are not allowed to cancel this order"
+                    }
+                )
 
             # ------------------------------------------------
             # VALIDATE ORDER STATUS
@@ -830,16 +1012,26 @@ def cancel_order(event):
             current_status = str(order["status"]).lower()
 
             if current_status == "cancelled":
+
                 connection.rollback()
-                return response(400, {
-                    "message": "Order is already cancelled"
-                })
+
+                return response(
+                    400,
+                    {
+                        "message": "Order is already cancelled"
+                    }
+                )
 
             if current_status == "completed":
+
                 connection.rollback()
-                return response(400, {
-                    "message": "Completed orders cannot be cancelled"
-                })
+
+                return response(
+                    400,
+                    {
+                        "message": "Completed orders cannot be cancelled"
+                    }
+                )
 
             # ------------------------------------------------
             # GET AND LOCK ORDER ITEMS
@@ -867,10 +1059,15 @@ def cancel_order(event):
             items = cursor.fetchall()
 
             if not items:
+
                 connection.rollback()
-                return response(400, {
-                    "message": "Order has no active items to restore"
-                })
+
+                return response(
+                    400,
+                    {
+                        "message": "Order has no active items to restore"
+                    }
+                )
 
             # ------------------------------------------------
             # RESTORE PRODUCT STOCK
@@ -878,7 +1075,10 @@ def cancel_order(event):
 
             for item in items:
 
-                new_stock = int(item["stock_count"]) + int(item["quantity"])
+                new_stock = (
+                    int(item["stock_count"])
+                    + int(item["quantity"])
+                )
 
                 cursor.execute(
                     """
@@ -887,7 +1087,10 @@ def cancel_order(event):
                     WHERE id = %s
                     AND is_deleted = FALSE
                     """,
-                    (new_stock, item["product_id"])
+                    (
+                        new_stock,
+                        item["product_id"]
+                    )
                 )
 
                 restored_items.append({
@@ -951,6 +1154,7 @@ def cancel_order(event):
     except Exception as error:
 
         if connection:
+
             try:
                 connection.rollback()
             except Exception:
@@ -974,6 +1178,7 @@ def cancel_order(event):
     finally:
 
         if connection:
+
             try:
                 connection.close()
             except Exception:
@@ -1061,6 +1266,45 @@ def get_order_by_id(event):
                     }
                 )
 
+            # ------------------------------------------------
+            # VERIFY CUSTOMER OWNS ORDER
+            # ------------------------------------------------
+
+            role, authenticated_customer_id = (
+                get_authorization_context(event)
+            )
+
+            if role == "customer":
+
+                if authenticated_customer_id is None:
+
+                    return response(
+                        403,
+                        {
+                            "message": (
+                                "Customer identity is missing "
+                                "from authorization context"
+                            )
+                        }
+                    )
+
+                if str(order["customer_id"]) != str(
+                    authenticated_customer_id
+                ):
+
+                    return response(
+                        403,
+                        {
+                            "message": (
+                                "You are not allowed to view this order"
+                            )
+                        }
+                    )
+
+            # ------------------------------------------------
+            # GET ORDER ITEMS
+            # ------------------------------------------------
+
             cursor.execute(
                 """
                 SELECT
@@ -1139,9 +1383,49 @@ def get_orders_by_customer(event):
                 }
             )
 
+        # ----------------------------------------------------
+        # GET AUTHORIZATION CONTEXT
+        # ----------------------------------------------------
+
+        role, authenticated_customer_id = get_authorization_context(event)
+
+        # ----------------------------------------------------
+        # VERIFY AUTHENTICATED CUSTOMER
+        # ----------------------------------------------------
+
+        if role == "customer":
+
+            if authenticated_customer_id is None:
+
+                return response(
+                    403,
+                    {
+                        "message": (
+                            "Customer identity is missing "
+                            "from authorization context"
+                        )
+                    }
+                )
+
+            if str(customer_id) != str(authenticated_customer_id):
+
+                return response(
+                    403,
+                    {
+                        "message": (
+                            "You are not allowed to view "
+                            "another customer's orders"
+                        )
+                    }
+                )
+
         connection = get_db_connection()
 
         with connection.cursor() as cursor:
+
+            # ------------------------------------------------
+            # CHECK CUSTOMER
+            # ------------------------------------------------
 
             cursor.execute(
                 """
@@ -1166,6 +1450,10 @@ def get_orders_by_customer(event):
                         "message": "Customer not found"
                     }
                 )
+
+            # ------------------------------------------------
+            # GET ORDERS + ITEMS
+            # ------------------------------------------------
 
             cursor.execute(
                 """
