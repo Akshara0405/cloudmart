@@ -727,6 +727,260 @@ def create_order(event):
 
 
 # ============================================================
+# PATCH /orders/{id} - CANCEL ORDER
+# ============================================================
+
+def cancel_order(event):
+
+    connection = None
+
+    try:
+
+        path_parameters = event.get("pathParameters") or {}
+        order_id = path_parameters.get("id")
+
+        if order_id is None:
+            return response(400, {
+                "message": "Order id is required"
+            })
+
+        try:
+            order_id = int(order_id)
+        except (TypeError, ValueError):
+            return response(400, {
+                "message": "Order id must be a number"
+            })
+
+        if order_id <= 0:
+            return response(400, {
+                "message": "Order id must be greater than zero"
+            })
+
+        try:
+            request = get_request_body(event)
+        except json.JSONDecodeError:
+            return response(400, {
+                "message": "Request body must contain valid JSON"
+            })
+
+        customer_id = request.get("customer_id")
+        status = request.get("status")
+
+        if customer_id is None or str(customer_id).strip() == "":
+            return response(400, {
+                "message": "customer_id is required"
+            })
+
+        if status is None:
+            return response(400, {
+                "message": "status is required"
+            })
+
+        if str(status).strip().lower() != "cancelled":
+            return response(400, {
+                "message": "status must be cancelled"
+            })
+
+        connection = get_db_connection()
+
+        restored_items = []
+
+        with connection.cursor() as cursor:
+
+            # ------------------------------------------------
+            # GET AND LOCK ORDER
+            # ------------------------------------------------
+
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    customer_id,
+                    status
+                FROM orders
+                WHERE id = %s
+                AND is_deleted = FALSE
+                FOR UPDATE
+                """,
+                (order_id,)
+            )
+
+            order = cursor.fetchone()
+
+            if not order:
+                connection.rollback()
+                return response(404, {
+                    "message": "Order not found"
+                })
+
+            # ------------------------------------------------
+            # VERIFY CUSTOMER OWNS ORDER
+            # ------------------------------------------------
+
+            if str(order["customer_id"]) != str(customer_id):
+                connection.rollback()
+                return response(403, {
+                    "message": "You are not allowed to cancel this order"
+                })
+
+            # ------------------------------------------------
+            # VALIDATE ORDER STATUS
+            # ------------------------------------------------
+
+            current_status = str(order["status"]).lower()
+
+            if current_status == "cancelled":
+                connection.rollback()
+                return response(400, {
+                    "message": "Order is already cancelled"
+                })
+
+            if current_status == "completed":
+                connection.rollback()
+                return response(400, {
+                    "message": "Completed orders cannot be cancelled"
+                })
+
+            # ------------------------------------------------
+            # GET AND LOCK ORDER ITEMS
+            # ------------------------------------------------
+
+            cursor.execute(
+                """
+                SELECT
+                    oi.id AS order_item_id,
+                    oi.product_id,
+                    oi.quantity,
+                    p.name AS product_name,
+                    p.stock_count
+                FROM order_items oi
+                INNER JOIN products p
+                    ON oi.product_id = p.id
+                WHERE oi.order_id = %s
+                AND oi.is_deleted = FALSE
+                AND p.is_deleted = FALSE
+                FOR UPDATE
+                """,
+                (order_id,)
+            )
+
+            items = cursor.fetchall()
+
+            if not items:
+                connection.rollback()
+                return response(400, {
+                    "message": "Order has no active items to restore"
+                })
+
+            # ------------------------------------------------
+            # RESTORE PRODUCT STOCK
+            # ------------------------------------------------
+
+            for item in items:
+
+                new_stock = int(item["stock_count"]) + int(item["quantity"])
+
+                cursor.execute(
+                    """
+                    UPDATE products
+                    SET stock_count = %s
+                    WHERE id = %s
+                    AND is_deleted = FALSE
+                    """,
+                    (new_stock, item["product_id"])
+                )
+
+                restored_items.append({
+                    "product_id": item["product_id"],
+                    "product_name": item["product_name"],
+                    "quantity_restored": int(item["quantity"]),
+                    "stock_after_restore": new_stock
+                })
+
+            # ------------------------------------------------
+            # CANCEL ORDER
+            # ------------------------------------------------
+
+            cursor.execute(
+                """
+                UPDATE orders
+                SET status = 'cancelled',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                AND is_deleted = FALSE
+                """,
+                (order_id,)
+            )
+
+        # ----------------------------------------------------
+        # COMMIT TRANSACTION
+        # ----------------------------------------------------
+
+        connection.commit()
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "order_cancelled",
+            "order_id": order_id,
+            "customer_id": customer_id,
+            "restored_items": restored_items
+        }))
+
+        publish_order_event(
+            "OrderCancelled",
+            {
+                "order_id": order_id,
+                "customer_id": customer_id,
+                "status": "cancelled",
+                "items": restored_items
+            }
+        )
+
+        return response(
+            200,
+            {
+                "message": "Order cancelled successfully",
+                "order_id": order_id,
+                "customer_id": customer_id,
+                "status": "cancelled",
+                "items": restored_items
+            }
+        )
+
+    except Exception as error:
+
+        if connection:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
+        logger.error(json.dumps({
+            "level": "ERROR",
+            "service": "order-processor",
+            "action": "order_cancellation_failed",
+            "error": str(error)
+        }))
+
+        return response(
+            500,
+            {
+                "message": "Order cancellation failed",
+                "error": str(error)
+            }
+        )
+
+    finally:
+
+        if connection:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+
+# ============================================================
 # GET /orders/{id}
 # ============================================================
 
@@ -1052,6 +1306,14 @@ def lambda_handler(event, context):
         if http_method == "GET" and resource == "/orders/{id}":
 
             return get_order_by_id(event)
+
+        # ====================================================
+        # PATCH /orders/{id}
+        # ====================================================
+
+        if http_method == "PATCH" and resource == "/orders/{id}":
+
+            return cancel_order(event)
 
         # ====================================================
         # GET /orders?customerId=X
