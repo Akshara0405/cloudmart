@@ -32,6 +32,7 @@ DB_HOST_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/host"
 DB_PORT_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/port"
 DB_NAME_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/name"
 DB_USERNAME_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/username"
+DB_PASSWORD_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/password"
 
 
 # ============================================================
@@ -55,12 +56,26 @@ def response(status_code, body):
 
 def get_parameter(name):
 
-    result = ssm.get_parameter(
-        Name=name,
-        WithDecryption=True
-    )
+    try:
 
-    return result["Parameter"]["Value"]
+        result = ssm.get_parameter(
+            Name=name,
+            WithDecryption=True
+        )
+
+        return result["Parameter"]["Value"]
+
+    except Exception as error:
+
+        logger.error(json.dumps({
+            "level": "ERROR",
+            "service": "order-processor",
+            "action": "ssm_parameter_read_failed",
+            "parameter": name,
+            "error": str(error)
+        }))
+
+        raise
 
 
 # ============================================================
@@ -69,23 +84,54 @@ def get_parameter(name):
 
 def get_db_connection():
 
-    host = get_parameter(DB_HOST_PARAMETER)
-    port = int(get_parameter(DB_PORT_PARAMETER))
-    database = get_parameter(DB_NAME_PARAMETER)
-    username = get_parameter(DB_USERNAME_PARAMETER)
+    try:
 
-    password = get_parameter(os.environ["DB_PASSWORD"])
+        host = get_parameter(DB_HOST_PARAMETER)
+        port = int(get_parameter(DB_PORT_PARAMETER))
+        database = get_parameter(DB_NAME_PARAMETER)
+        username = get_parameter(DB_USERNAME_PARAMETER)
+        password = get_parameter(DB_PASSWORD_PARAMETER)
 
-    return pymysql.connect(
-        host=host,
-        port=port,
-        user=username,
-        password=password,
-        database=database,
-        connect_timeout=10,
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=False
-    )
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "database_connection_started",
+            "host_parameter": DB_HOST_PARAMETER,
+            "port_parameter": DB_PORT_PARAMETER,
+            "database_parameter": DB_NAME_PARAMETER,
+            "username_parameter": DB_USERNAME_PARAMETER,
+            "password_parameter": DB_PASSWORD_PARAMETER
+        }))
+
+        connection = pymysql.connect(
+            host=host,
+            port=port,
+            user=username,
+            password=password,
+            database=database,
+            connect_timeout=10,
+            cursorclass=pymysql.cursors.DictCursor,
+            autocommit=False
+        )
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "database_connection_success"
+        }))
+
+        return connection
+
+    except Exception as error:
+
+        logger.error(json.dumps({
+            "level": "ERROR",
+            "service": "order-processor",
+            "action": "database_connection_failed",
+            "error": str(error)
+        }))
+
+        raise
 
 
 # ============================================================
@@ -191,6 +237,7 @@ def create_order(event):
         # ----------------------------------------------------
 
         try:
+
             request = get_request_body(event)
 
         except json.JSONDecodeError:
@@ -252,16 +299,6 @@ def create_order(event):
         # ----------------------------------------------------
         # VALIDATE EVERY ITEM
         # ----------------------------------------------------
-
-        # Combine duplicate product IDs.
-        # Example:
-        #
-        # product_id 2, quantity 1
-        # product_id 2, quantity 2
-        #
-        # becomes:
-        #
-        # product_id 2, quantity 3
 
         items_by_product = {}
 
@@ -344,10 +381,7 @@ def create_order(event):
                     }
                 )
 
-            # ------------------------------------------------
-            # COMBINE DUPLICATE PRODUCTS
-            # ------------------------------------------------
-
+            # Combine duplicate products
             if product_id in items_by_product:
 
                 items_by_product[product_id] += quantity
@@ -551,9 +585,7 @@ def create_order(event):
                     'pending'
                 )
                 """,
-                (
-                    customer_id
-                )
+                (customer_id,)
             )
 
             order_id = cursor.lastrowid
@@ -588,10 +620,6 @@ def create_order(event):
                         item["price"]
                     )
                 )
-
-                # ------------------------------------------------
-                # DEDUCT INVENTORY
-                # ------------------------------------------------
 
                 cursor.execute(
                     """
@@ -667,7 +695,11 @@ def create_order(event):
     except Exception as error:
 
         if connection:
-            connection.rollback()
+
+            try:
+                connection.rollback()
+            except Exception:
+                pass
 
         logger.error(json.dumps({
             "level": "ERROR",
@@ -687,7 +719,11 @@ def create_order(event):
     finally:
 
         if connection:
-            connection.close()
+
+            try:
+                connection.close()
+            except Exception:
+                pass
 
 
 # ============================================================
@@ -699,10 +735,6 @@ def get_order_by_id(event):
     connection = None
 
     try:
-
-        # ----------------------------------------------------
-        # GET PATH PARAMETER
-        # ----------------------------------------------------
 
         path_parameters = event.get("pathParameters") or {}
 
@@ -739,17 +771,9 @@ def get_order_by_id(event):
                 }
             )
 
-        # ----------------------------------------------------
-        # DATABASE
-        # ----------------------------------------------------
-
         connection = get_db_connection()
 
         with connection.cursor() as cursor:
-
-            # ------------------------------------------------
-            # GET ORDER
-            # ------------------------------------------------
 
             cursor.execute(
                 """
@@ -782,10 +806,6 @@ def get_order_by_id(event):
                         "message": "Order not found"
                     }
                 )
-
-            # ------------------------------------------------
-            # GET ORDER ITEMS
-            # ------------------------------------------------
 
             cursor.execute(
                 """
@@ -835,7 +855,11 @@ def get_order_by_id(event):
     finally:
 
         if connection:
-            connection.close()
+
+            try:
+                connection.close()
+            except Exception:
+                pass
 
 
 # ============================================================
@@ -847,10 +871,6 @@ def get_orders_by_customer(event):
     connection = None
 
     try:
-
-        # ----------------------------------------------------
-        # GET QUERY PARAMETER
-        # ----------------------------------------------------
 
         query_parameters = event.get("queryStringParameters") or {}
 
@@ -865,17 +885,9 @@ def get_orders_by_customer(event):
                 }
             )
 
-        # ----------------------------------------------------
-        # DATABASE
-        # ----------------------------------------------------
-
         connection = get_db_connection()
 
         with connection.cursor() as cursor:
-
-            # ------------------------------------------------
-            # CHECK CUSTOMER
-            # ------------------------------------------------
 
             cursor.execute(
                 """
@@ -900,10 +912,6 @@ def get_orders_by_customer(event):
                         "message": "Customer not found"
                     }
                 )
-
-            # ------------------------------------------------
-            # GET ORDERS + ITEMS
-            # ------------------------------------------------
 
             cursor.execute(
                 """
@@ -999,7 +1007,11 @@ def get_orders_by_customer(event):
     finally:
 
         if connection:
-            connection.close()
+
+            try:
+                connection.close()
+            except Exception:
+                pass
 
 
 # ============================================================
@@ -1009,10 +1021,6 @@ def get_orders_by_customer(event):
 def lambda_handler(event, context):
 
     try:
-
-        # ----------------------------------------------------
-        # API GATEWAY INFORMATION
-        # ----------------------------------------------------
 
         http_method = event.get("httpMethod", "").upper()
 

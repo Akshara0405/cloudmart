@@ -19,6 +19,7 @@ DB_HOST_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/host"
 DB_PORT_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/port"
 DB_NAME_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/name"
 DB_USERNAME_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/username"
+DB_PASSWORD_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/password"
 
 EVENT_BUS_NAME = os.environ.get("EVENT_BUS_NAME", "default")
 
@@ -38,8 +39,7 @@ def get_db_connection():
     port = int(get_parameter(DB_PORT_PARAMETER))
     database = get_parameter(DB_NAME_PARAMETER)
     username = get_parameter(DB_USERNAME_PARAMETER)
-
-    password = os.environ["DB_PASSWORD"]
+    password = get_parameter(DB_PASSWORD_PARAMETER)
 
     return pymysql.connect(
         host=host,
