@@ -248,6 +248,17 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Package Authorizer Lambda
+        run: |
+          mkdir -p build/authorizer
+          cp lambda/lambda-authorizer/index.py build/authorizer/index.py
+          cd build/authorizer
+          zip -r ../../lambda-authorizer.zip .
+
+      - name: Upload Authorizer Lambda to S3
+        run: |
+          aws s3 cp lambda-authorizer.zip s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/lambda-authorizer-${GITHUB_SHA}.zip
+
       - name: Validate Auth CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -263,6 +274,7 @@ jobs:
               Environment=dev \
               AuthToken="${{ secrets.CLOUDMART_AUTH_TOKEN }}" \
               AdminToken="${{ secrets.CLOUDMART_ADMIN_TOKEN }}" \
+              AuthorizerLambdaS3Key=lambda/lambda-authorizer-${GITHUB_SHA}.zip \
             --no-fail-on-empty-changeset
 
       - name: Check Auth Stack Status
@@ -317,6 +329,31 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Package Product Lambda
+        run: |
+          rm -rf build/product-lambda
+          mkdir -p build/product-lambda
+          cp lambda/product-lambda/index.py build/product-lambda/index.py
+          if [ -f lambda/product-lambda/requirements.txt ]; then
+            python -m pip install -r lambda/product-lambda/requirements.txt -t build/product-lambda
+          fi
+          cd build/product-lambda
+          zip -r ../../product-lambda.zip .
+
+      - name: Package Order Processor Lambda
+        run: |
+          rm -rf build/order-processor
+          mkdir -p build/order-processor
+          cp lambda/order-processor/index.py build/order-processor/index.py
+          python -m pip install -r lambda/order-processor/requirements.txt -t build/order-processor
+          cd build/order-processor
+          zip -r ../../order-processor.zip .
+
+      - name: Upload Lambda ZIPs to S3
+        run: |
+          aws s3 cp product-lambda.zip s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/product-lambda-${GITHUB_SHA}.zip
+          aws s3 cp order-processor.zip s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/order-processor-${GITHUB_SHA}.zip
+
       - name: Validate API CloudFormation template
         run: |
           aws cloudformation validate-template \
@@ -330,6 +367,8 @@ jobs:
             --region ap-south-1 \
             --parameter-overrides \
               Environment=dev \
+              ProductLambdaS3Key=lambda/product-lambda-${GITHUB_SHA}.zip \
+              OrderProcessorLambdaS3Key=lambda/order-processor-${GITHUB_SHA}.zip \
             --no-fail-on-empty-changeset
 
       - name: Check API Stack Status
