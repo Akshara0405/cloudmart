@@ -1,4 +1,3 @@
-
 import json
 import logging
 import os
@@ -254,7 +253,17 @@ def create_order(event):
         # VALIDATE EVERY ITEM
         # ----------------------------------------------------
 
-        validated_items = []
+        # Combine duplicate product IDs.
+        # Example:
+        #
+        # product_id 2, quantity 1
+        # product_id 2, quantity 2
+        #
+        # becomes:
+        #
+        # product_id 2, quantity 3
+
+        items_by_product = {}
 
         for index, item in enumerate(items):
 
@@ -334,6 +343,26 @@ def create_order(event):
                         )
                     }
                 )
+
+            # ------------------------------------------------
+            # COMBINE DUPLICATE PRODUCTS
+            # ------------------------------------------------
+
+            if product_id in items_by_product:
+
+                items_by_product[product_id] += quantity
+
+            else:
+
+                items_by_product[product_id] = quantity
+
+        # ----------------------------------------------------
+        # CREATE VALIDATED ITEMS
+        # ----------------------------------------------------
+
+        validated_items = []
+
+        for product_id, quantity in items_by_product.items():
 
             validated_items.append({
                 "product_id": product_id,
@@ -1051,4 +1080,3 @@ def lambda_handler(event, context):
                 "error": str(error)
             }
         )
-
