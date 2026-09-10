@@ -72,13 +72,16 @@ Resources:
       RestApiId: !Ref CloudMartApi
       Type: TOKEN
       IdentitySource: method.request.header.Authorization
+
       AuthorizerUri:
         !Sub
           - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerArn}/invocations
           - AuthorizerArn:
               Fn::ImportValue:
                 Fn::Sub: CloudMart-${Environment}-AuthorizerFunctionArn
-      AuthorizerResultTtlInSeconds: 300
+
+      # Keep this at 1 second while testing role-based access.
+      AuthorizerResultTtlInSeconds: 1
 
   # ============================================================
   # PRODUCT LAMBDA
@@ -90,26 +93,34 @@ Resources:
       FunctionName: !Sub CloudMart-${Environment}-ProductService
       Runtime: python3.12
       Handler: index.lambda_handler
+
       Role:
         Fn::ImportValue:
           Fn::Sub: CloudMart-${Environment}-ApplicationLambdaRoleArn
+
       Timeout: 30
       MemorySize: 128
+
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
+
           DB_PASSWORD:
             Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-DBPasswordParameter
+
       VpcConfig:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-LambdaSecurityGroupId
+
         SubnetIds:
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
+
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
+
       Code:
         S3Bucket: cloudmart-dev-reports-062585739401-ap-south-1
         S3Key: lambda/product-lambda.zip
@@ -124,26 +135,34 @@ Resources:
       FunctionName: !Sub CloudMart-${Environment}-OrderProcessor
       Runtime: python3.12
       Handler: index.lambda_handler
+
       Role:
         Fn::ImportValue:
           Fn::Sub: CloudMart-${Environment}-OrderProcessorLambdaRoleArn
+
       Timeout: 30
       MemorySize: 128
+
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
+
           DB_PASSWORD:
             Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-DBPasswordParameter
+
       VpcConfig:
         SecurityGroupIds:
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-LambdaSecurityGroupId
+
         SubnetIds:
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
+
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
+
       Code:
         S3Bucket: cloudmart-dev-reports-062585739401-ap-south-1
         S3Key: lambda/order-processor.zip
@@ -158,6 +177,7 @@ Resources:
       FunctionName: !Ref ProductLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
+
       SourceArn:
         !Sub
           - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*
@@ -173,6 +193,7 @@ Resources:
       FunctionName: !Ref OrderProcessorLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
+
       SourceArn:
         !Sub
           - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*
@@ -182,6 +203,8 @@ Resources:
   # PRODUCT API METHODS
   # ============================================================
 
+  # POST /products
+
   CreateProductMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -190,13 +213,17 @@ Resources:
       HttpMethod: POST
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProductLambdaArn}/invocations
             - ProductLambdaArn: !GetAtt ProductLambda.Arn
+
+  # GET /products
 
   GetProductsMethod:
     Type: AWS::ApiGateway::Method
@@ -206,13 +233,17 @@ Resources:
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProductLambdaArn}/invocations
             - ProductLambdaArn: !GetAtt ProductLambda.Arn
+
+  # GET /products/{id}
 
   GetProductMethod:
     Type: AWS::ApiGateway::Method
@@ -222,13 +253,17 @@ Resources:
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProductLambdaArn}/invocations
             - ProductLambdaArn: !GetAtt ProductLambda.Arn
+
+  # PUT /products/{id}
 
   UpdateProductMethod:
     Type: AWS::ApiGateway::Method
@@ -238,13 +273,17 @@ Resources:
       HttpMethod: PUT
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProductLambdaArn}/invocations
             - ProductLambdaArn: !GetAtt ProductLambda.Arn
+
+  # DELETE /products/{id}
 
   DeleteProductMethod:
     Type: AWS::ApiGateway::Method
@@ -254,9 +293,11 @@ Resources:
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProductLambdaArn}/invocations
@@ -267,6 +308,7 @@ Resources:
   # ============================================================
 
   # POST /orders
+
   CreateOrderMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -275,15 +317,18 @@ Resources:
       HttpMethod: POST
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderProcessorLambdaArn}/invocations
             - OrderProcessorLambdaArn: !GetAtt OrderProcessorLambda.Arn
 
   # GET /orders?customerId=X
+
   GetOrdersMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -292,15 +337,18 @@ Resources:
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderProcessorLambdaArn}/invocations
             - OrderProcessorLambdaArn: !GetAtt OrderProcessorLambda.Arn
 
   # GET /orders/{id}
+
   GetOrderMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -309,9 +357,37 @@ Resources:
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref CloudMartAuthorizer
+
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
+
+        Uri:
+          !Sub
+            - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderProcessorLambdaArn}/invocations
+            - OrderProcessorLambdaArn: !GetAtt OrderProcessorLambda.Arn
+
+  # PATCH /orders/{id}
+  # Used to cancel an existing order.
+  #
+  # Request body:
+  # {
+  #   "status": "cancelled"
+  # }
+
+  CancelOrderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CloudMartApi
+      ResourceId: !Ref OrderIdResource
+      HttpMethod: PATCH
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref CloudMartAuthorizer
+
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+
         Uri:
           !Sub
             - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OrderProcessorLambdaArn}/invocations
@@ -323,7 +399,9 @@ Resources:
 
   ApiDeploymentV2:
     Type: AWS::ApiGateway::Deployment
+
     DependsOn:
+
       # Product methods
       - CreateProductMethod
       - GetProductsMethod
@@ -335,6 +413,7 @@ Resources:
       - CreateOrderMethod
       - GetOrdersMethod
       - GetOrderMethod
+      - CancelOrderMethod
 
     Properties:
       RestApiId: !Ref CloudMartApi
@@ -359,6 +438,7 @@ Outputs:
   ApiId:
     Description: CloudMart API Gateway REST API ID
     Value: !Ref CloudMartApi
+
     Export:
       Name: !Sub CloudMart-${Environment}-ApiId
 
@@ -369,17 +449,20 @@ Outputs:
   ProductLambdaArn:
     Description: CloudMart Product Service Lambda ARN
     Value: !GetAtt ProductLambda.Arn
+
     Export:
       Name: !Sub CloudMart-${Environment}-ProductLambdaArn
 
   OrderProcessorLambdaArn:
     Description: CloudMart Order Processor Lambda ARN
     Value: !GetAtt OrderProcessorLambda.Arn
+
     Export:
       Name: !Sub CloudMart-${Environment}-OrderProcessorLambdaArn
 
   AuthorizerId:
     Description: API Gateway Lambda Authorizer ID
     Value: !Ref CloudMartAuthorizer
+
     Export:
       Name: !Sub CloudMart-${Environment}-ApiAuthorizerId
