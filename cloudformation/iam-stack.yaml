@@ -1,4 +1,3 @@
-
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: CloudMart IAM Stack
@@ -11,6 +10,7 @@ Parameters:
     AllowedValues:
       - dev
       - prod
+
 
 Resources:
 
@@ -27,9 +27,11 @@ Resources:
         !Sub CloudMart-${Environment}-Authorizer-Lambda-Role
 
       AssumeRolePolicyDocument:
+
         Version: '2012-10-17'
 
         Statement:
+
           - Effect: Allow
 
             Principal:
@@ -40,25 +42,67 @@ Resources:
               - sts:AssumeRole
 
       ManagedPolicyArns:
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
       Policies:
 
+        # ========================================================
+        # AUTH SSM ACCESS
+        # ========================================================
+
         - PolicyName: AuthorizerSSMAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - ssm:GetParameter
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/auth/customer-token
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/auth/admin-token
+
+
+        # ========================================================
+        # DATABASE SSM ACCESS
+        # Authorizer needs DB connection parameters to
+        # validate customer tokens against RDS.
+        # ========================================================
+
+        - PolicyName: AuthorizerDatabaseSSMAccess
+
+          PolicyDocument:
+
+            Version: '2012-10-17'
+
+            Statement:
+
+              - Effect: Allow
+
+                Action:
+                  - ssm:GetParameter
+
+                Resource:
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
 
 
   # ============================================================
@@ -74,9 +118,11 @@ Resources:
         !Sub CloudMart-${Environment}-Application-Lambda-Role
 
       AssumeRolePolicyDocument:
+
         Version: '2012-10-17'
 
         Statement:
+
           - Effect: Allow
 
             Principal:
@@ -87,51 +133,62 @@ Resources:
               - sts:AssumeRole
 
       ManagedPolicyArns:
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
       Policies:
 
         # ========================================================
         # SSM ACCESS
-        # Product Lambda needs these database parameters
         # ========================================================
 
         - PolicyName: ApplicationSSMAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - ssm:GetParameter
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+
 
         # ========================================================
         # EVENTBRIDGE PERMISSION
-        # Allows Product Lambda to publish inventory events
         # ========================================================
 
         - PolicyName: ApplicationEventBridgeAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - events:PutEvents
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
 
 
@@ -148,9 +205,11 @@ Resources:
         !Sub CloudMart-${Environment}-OrderProcessor-Lambda-Role
 
       AssumeRolePolicyDocument:
+
         Version: '2012-10-17'
 
         Statement:
+
           - Effect: Allow
 
             Principal:
@@ -161,51 +220,62 @@ Resources:
               - sts:AssumeRole
 
       ManagedPolicyArns:
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
       Policies:
 
         # ========================================================
         # SSM ACCESS
-        # Allows Order Processor to read database parameters
         # ========================================================
 
         - PolicyName: OrderProcessorSSMAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - ssm:GetParameter
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+
 
         # ========================================================
         # EVENTBRIDGE PERMISSION
-        # Allows Order Processor to publish order events
         # ========================================================
 
         - PolicyName: OrderProcessorEventBridgeAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - events:PutEvents
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
 
 
@@ -222,9 +292,11 @@ Resources:
         !Sub CloudMart-${Environment}-InventoryAlert-Lambda-Role
 
       AssumeRolePolicyDocument:
+
         Version: '2012-10-17'
 
         Statement:
+
           - Effect: Allow
 
             Principal:
@@ -235,7 +307,9 @@ Resources:
               - sts:AssumeRole
 
       ManagedPolicyArns:
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
       Policies:
@@ -247,38 +321,48 @@ Resources:
         - PolicyName: InventoryAlertSSMAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - ssm:GetParameter
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+
 
         # ========================================================
         # SNS PUBLISH PERMISSION
-        # Only the CloudMart Low Stock topic
         # ========================================================
 
         - PolicyName: InventoryAlertSNSPublish
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - sns:Publish
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:CloudMart-${Environment}-LowStockAlerts
 
 
@@ -295,9 +379,11 @@ Resources:
         !Sub CloudMart-${Environment}-Report-Lambda-Role
 
       AssumeRolePolicyDocument:
+
         Version: '2012-10-17'
 
         Statement:
+
           - Effect: Allow
 
             Principal:
@@ -308,7 +394,9 @@ Resources:
               - sts:AssumeRole
 
       ManagedPolicyArns:
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
       Policies:
@@ -320,20 +408,28 @@ Resources:
         - PolicyName: ReportSSMAccess
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
+
               - Effect: Allow
 
                 Action:
                   - ssm:GetParameter
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+
 
         # ========================================================
         # S3 ACCESS
@@ -342,11 +438,15 @@ Resources:
         - PolicyName: ReportS3Access
 
           PolicyDocument:
+
             Version: '2012-10-17'
 
             Statement:
 
+              # --------------------------------------------------
               # Object-level access
+              # --------------------------------------------------
+
               - Effect: Allow
 
                 Action:
@@ -354,15 +454,21 @@ Resources:
                   - s3:GetObject
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}/*
 
+
+              # --------------------------------------------------
               # Bucket-level access
+              # --------------------------------------------------
+
               - Effect: Allow
 
                 Action:
                   - s3:ListBucket
 
                 Resource:
+
                   - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
 
 
@@ -440,4 +546,3 @@ Outputs:
     Export:
       Name:
         !Sub CloudMart-${Environment}-ReportLambdaRoleArn
-

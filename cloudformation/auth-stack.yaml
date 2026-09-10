@@ -1,4 +1,3 @@
-
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: CloudMart Authentication Stack
@@ -25,12 +24,18 @@ Parameters:
   AuthorizerLambdaS3Key:
     Type: String
 
+
 Resources:
+
+  # ============================================================
+  # CUSTOMER TOKEN SSM PARAMETER
+  # ============================================================
 
   CustomerTokenParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/auth/customer-token
 
@@ -47,10 +52,16 @@ Resources:
         Application: CloudMart
         Role: CUSTOMER
 
+
+  # ============================================================
+  # ADMIN TOKEN SSM PARAMETER
+  # ============================================================
+
   AdminTokenParameter:
     Type: AWS::SSM::Parameter
 
     Properties:
+
       Name:
         !Sub /cloudmart/${Environment}/auth/admin-token
 
@@ -66,6 +77,11 @@ Resources:
         Environment: !Ref Environment
         Application: CloudMart
         Role: ADMIN
+
+
+  # ============================================================
+  # AUTHORIZER LAMBDA
+  # ============================================================
 
   AuthorizerLambda:
     Type: AWS::Lambda::Function
@@ -87,6 +103,10 @@ Resources:
 
       MemorySize: 128
 
+      # --------------------------------------------------------
+      # VPC
+      # --------------------------------------------------------
+
       VpcConfig:
 
         SecurityGroupIds:
@@ -100,9 +120,17 @@ Resources:
           - Fn::ImportValue:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
 
+      # --------------------------------------------------------
+      # ENVIRONMENT VARIABLES
+      # --------------------------------------------------------
+
       Environment:
 
         Variables:
+
+          # ----------------------------------------------------
+          # AUTH PARAMETERS
+          # ----------------------------------------------------
 
           CUSTOMER_TOKEN_PARAMETER:
             !Sub /cloudmart/${Environment}/auth/customer-token
@@ -110,22 +138,57 @@ Resources:
           ADMIN_TOKEN_PARAMETER:
             !Sub /cloudmart/${Environment}/auth/admin-token
 
+          # ----------------------------------------------------
+          # DATABASE PARAMETERS
+          # ----------------------------------------------------
+
+          DB_HOST_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/host
+
+          DB_PORT_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/port
+
+          DB_NAME_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/name
+
+          DB_USERNAME_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/username
+
+          DB_PASSWORD_PARAMETER:
+            !Sub /cloudmart/${Environment}/database/password
+
+      # --------------------------------------------------------
+      # LAMBDA CODE
+      # --------------------------------------------------------
+
       Code:
 
         S3Bucket: cloudmart-dev-reports-062585739401-ap-south-1
 
-        S3Key: !Ref AuthorizerLambdaS3Key
+        S3Key:
+          !Ref AuthorizerLambdaS3Key
+
+      # --------------------------------------------------------
+      # TAGS
+      # --------------------------------------------------------
 
       Tags:
 
         - Key: Name
-          Value: !Sub CloudMart-${Environment}-Authorizer
+          Value:
+            !Sub CloudMart-${Environment}-Authorizer
 
         - Key: Project
           Value: CloudMart
 
         - Key: Environment
-          Value: !Ref Environment
+          Value:
+            !Ref Environment
+
+
+  # ============================================================
+  # API GATEWAY → AUTHORIZE LAMBDA PERMISSION
+  # ============================================================
 
   AuthorizerInvokePermission:
     Type: AWS::Lambda::Permission
@@ -141,10 +204,22 @@ Resources:
       Principal:
         apigateway.amazonaws.com
 
+
+# ================================================================
+# OUTPUTS
+# ================================================================
+
 Outputs:
 
+  # ============================================================
+  # AUTHORIZER FUNCTION ARN
+  # ============================================================
+
   AuthorizerFunctionArn:
-    Description: CloudMart Lambda Authorizer ARN
+
+    Description:
+      CloudMart Lambda Authorizer ARN
+
     Value:
       !GetAtt AuthorizerLambda.Arn
 
@@ -152,19 +227,36 @@ Outputs:
       Name:
         !Sub CloudMart-${Environment}-AuthorizerFunctionArn
 
+
+  # ============================================================
+  # AUTHORIZER INVOKE ARN
+  # ============================================================
+
   AuthorizerFunctionInvokeArn:
-    Description: CloudMart Lambda Authorizer invoke ARN
+
+    Description:
+      CloudMart Lambda Authorizer invoke ARN
+
     Value:
       !Sub
         - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerArn}/invocations
-        - AuthorizerArn: !GetAtt AuthorizerLambda.Arn
+        - AuthorizerArn:
+            !GetAtt AuthorizerLambda.Arn
 
     Export:
       Name:
         !Sub CloudMart-${Environment}-AuthorizerFunctionInvokeArn
 
+
+  # ============================================================
+  # CUSTOMER TOKEN PARAMETER NAME
+  # ============================================================
+
   CustomerTokenParameterName:
-    Description: SSM customer authentication token parameter
+
+    Description:
+      SSM customer authentication token parameter
+
     Value:
       !Ref CustomerTokenParameter
 
@@ -172,8 +264,16 @@ Outputs:
       Name:
         !Sub CloudMart-${Environment}-CustomerTokenParameterName
 
+
+  # ============================================================
+  # CUSTOMER TOKEN PARAMETER ARN
+  # ============================================================
+
   CustomerTokenParameterArn:
-    Description: SSM customer authentication token parameter ARN
+
+    Description:
+      SSM customer authentication token parameter ARN
+
     Value:
       !GetAtt CustomerTokenParameter.Arn
 
@@ -181,8 +281,16 @@ Outputs:
       Name:
         !Sub CloudMart-${Environment}-CustomerTokenParameterArn
 
+
+  # ============================================================
+  # ADMIN TOKEN PARAMETER NAME
+  # ============================================================
+
   AdminTokenParameterName:
-    Description: SSM admin authentication token parameter
+
+    Description:
+      SSM admin authentication token parameter
+
     Value:
       !Ref AdminTokenParameter
 
@@ -190,12 +298,19 @@ Outputs:
       Name:
         !Sub CloudMart-${Environment}-AdminTokenParameterName
 
+
+  # ============================================================
+  # ADMIN TOKEN PARAMETER ARN
+  # ============================================================
+
   AdminTokenParameterArn:
-    Description: SSM admin authentication token parameter ARN
+
+    Description:
+      SSM admin authentication token parameter ARN
+
     Value:
       !GetAtt AdminTokenParameter.Arn
 
     Export:
       Name:
         !Sub CloudMart-${Environment}-AdminTokenParameterArn
-
