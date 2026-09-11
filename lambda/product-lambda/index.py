@@ -11,6 +11,7 @@ logger.setLevel(logging.INFO)
 
 ssm = boto3.client("ssm")
 events = boto3.client("events")
+cloudwatch = boto3.client("cloudwatch")
 
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
@@ -77,6 +78,42 @@ def execute_schema(connection):
     connection.commit()
 
 
+def publish_metric(metric_name):
+    try:
+        cloudwatch.put_metric_data(
+            Namespace="cloudmart",
+            MetricData=[
+                {
+                    "MetricName": metric_name,
+                    "Value": 1,
+                    "Unit": "Count",
+                    "Dimensions": [
+                        {
+                            "Name": "Environment",
+                            "Value": ENVIRONMENT
+                        }
+                    ]
+                }
+            ]
+        )
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "product-service",
+            "action": "metric_published",
+            "metric_name": metric_name
+        }))
+
+    except Exception as error:
+        logger.error(json.dumps({
+            "level": "ERROR",
+            "service": "product-service",
+            "action": "metric_publish_failed",
+            "metric_name": metric_name,
+            "error": str(error)
+        }))
+
+
 def publish_inventory_event(
     product_id,
     stock_count,
@@ -87,10 +124,12 @@ def publish_inventory_event(
     EventBridge rules can use this event for low-stock alerts.
     """
 
+    low_stock = int(stock_count) <= 5
+
     event_detail = {
         "product_id": int(product_id),
         "stock_count": int(stock_count),
-        "low_stock": int(stock_count) <= 5,
+        "low_stock": low_stock,
         "environment": ENVIRONMENT
     }
 
@@ -129,6 +168,9 @@ def publish_inventory_event(
         "event_type": event_type,
         "event_bus": EVENT_BUS_NAME
     }))
+
+    if low_stock:
+        publish_metric("LowStockEvents")
 
 
 def response(status_code, body):

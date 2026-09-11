@@ -20,6 +20,7 @@ logger.setLevel(logging.INFO)
 
 ssm = boto3.client("ssm")
 events = boto3.client("events")
+cloudwatch = boto3.client("cloudwatch")
 
 
 # ============================================================
@@ -137,6 +138,45 @@ def get_db_connection():
 # ============================================================
 # EVENTBRIDGE EVENT PUBLISHER
 # ============================================================
+
+def publish_metric(metric_name):
+
+    try:
+
+        cloudwatch.put_metric_data(
+            Namespace="cloudmart",
+            MetricData=[
+                {
+                    "MetricName": metric_name,
+                    "Value": 1,
+                    "Unit": "Count",
+                    "Dimensions": [
+                        {
+                            "Name": "Environment",
+                            "Value": ENVIRONMENT
+                        }
+                    ]
+                }
+            ]
+        )
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "metric_published",
+            "metric_name": metric_name
+        }))
+
+    except Exception as error:
+
+        logger.error(json.dumps({
+            "level": "ERROR",
+            "service": "order-processor",
+            "action": "metric_publish_failed",
+            "metric_name": metric_name,
+            "error": str(error)
+        }))
+
 
 def publish_order_event(detail_type, detail):
 
@@ -520,6 +560,8 @@ def create_order(event):
                     "customer_id": customer_id
                 }))
 
+                publish_metric("OrdersFailed")
+
                 publish_order_event(
                     "OrderFailed",
                     {
@@ -579,6 +621,8 @@ def create_order(event):
                         "quantity": quantity
                     }))
 
+                    publish_metric("OrdersFailed")
+
                     publish_order_event(
                         "OrderFailed",
                         {
@@ -613,6 +657,8 @@ def create_order(event):
                         "requested_quantity": quantity,
                         "available_stock": current_stock
                     }))
+
+                    publish_metric("OrdersFailed")
 
                     publish_order_event(
                         "OrderFailed",
@@ -730,6 +776,8 @@ def create_order(event):
         # ====================================================
 
         connection.commit()
+
+        publish_metric("OrdersPlaced")
 
         logger.info(json.dumps({
             "level": "INFO",

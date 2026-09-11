@@ -192,6 +192,32 @@ Resources:
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
 
 
+        # ========================================================
+        # CLOUDWATCH CUSTOM METRICS PERMISSION
+        # ========================================================
+
+        - PolicyName: ApplicationCloudWatchMetrics
+
+          PolicyDocument:
+
+            Version: '2012-10-17'
+
+            Statement:
+
+              - Effect: Allow
+
+                Action:
+                  - cloudwatch:PutMetricData
+
+                Resource: "*"
+
+                Condition:
+
+                  StringEquals:
+                    cloudwatch:namespace:
+                      - cloudmart
+
+
   # ============================================================
   # ORDER PROCESSOR LAMBDA ROLE
   # ============================================================
@@ -277,6 +303,32 @@ Resources:
                 Resource:
 
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+
+
+        # ========================================================
+        # CLOUDWATCH CUSTOM METRICS PERMISSION
+        # ========================================================
+
+        - PolicyName: OrderProcessorCloudWatchMetrics
+
+          PolicyDocument:
+
+            Version: '2012-10-17'
+
+            Statement:
+
+              - Effect: Allow
+
+                Action:
+                  - cloudwatch:PutMetricData
+
+                Resource: "*"
+
+                Condition:
+
+                  StringEquals:
+                    cloudwatch:namespace:
+                      - cloudmart
 
 
   # ============================================================
@@ -429,7 +481,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
 
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/storage/reports-bucket
+
 
         # ========================================================
         # S3 ACCESS
