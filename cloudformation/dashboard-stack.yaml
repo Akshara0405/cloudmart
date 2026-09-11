@@ -17,9 +17,7 @@ Parameters:
     Type: String
     Default: t3.micro
 
-  KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: EC2 key pair for emergency SSH access
+ 
 
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -146,8 +144,8 @@ Resources:
       InstanceType:
         !Ref InstanceType
 
-      KeyName:
-        !Ref KeyName
+     
+         
 
       IamInstanceProfile:
         !Ref DashboardInstanceProfile
