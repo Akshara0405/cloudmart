@@ -44,6 +44,7 @@ Resources:
     Type: AWS::SNS::Topic
 
     Properties:
+
       TopicName:
         !Sub CloudMart-${Environment}-LowStockAlerts
 
@@ -59,6 +60,7 @@ Resources:
     Type: AWS::SNS::Subscription
 
     Properties:
+
       TopicArn:
         !Ref LowStockTopic
 
@@ -643,33 +645,10 @@ Resources:
               },
 
               {
-                "type": "metric",
+                "type": "text",
                 "x": 0,
                 "y": 24,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "title": "EC2 Dashboard CPU",
-                  "region": "${AWS::Region}",
-                  "view": "timeSeries",
-                  "period": 300,
-                  "stat": "Average",
-                  "metrics": [
-                    [
-                      "AWS/EC2",
-                      "CPUUtilization",
-                      "InstanceId",
-                      "${AWS::NoValue}"
-                    ]
-                  ]
-                }
-              },
-
-              {
-                "type": "text",
-                "x": 12,
-                "y": 24,
-                "width": 12,
+                "width": 24,
                 "height": 6,
                 "properties": {
                   "markdown": "# CloudMart Operations\n\n**Environment:** ${Environment}\n\nThis dashboard provides API Gateway, Lambda, RDS and business-metric visibility."
