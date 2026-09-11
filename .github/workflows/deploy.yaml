@@ -505,3 +505,118 @@ jobs:
               Environment=dev \
               AlertEmail=${{ secrets.ALERT_EMAIL }} \
             --capabilities CAPABILITY_NAMED_IAM
+  # ============================================================
+  # REPORT STACK
+  # Packages and deploys the Daily Report Lambda
+  # ============================================================
+
+  deploy-report:
+    runs-on: ubuntu-latest
+
+    needs: deploy-api
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Verify AWS access
+        run: |
+          aws sts get-caller-identity
+
+      # ========================================================
+      # PACKAGE REPORT LAMBDA
+      # ========================================================
+
+      - name: Package Report Lambda
+        run: |
+          rm -rf build/report-lambda
+          mkdir -p build/report-lambda
+
+          cp lambda/report-lambda/index.py build/report-lambda/index.py
+
+          python -m pip install \
+            -r lambda/report-lambda/requirements.txt \
+            -t build/report-lambda
+
+          cd build/report-lambda
+          zip -r ../../report-lambda.zip .
+
+      # ========================================================
+      # UPLOAD REPORT LAMBDA ZIP
+      # ========================================================
+
+      - name: Upload Report Lambda to S3
+        run: |
+          aws s3 cp \
+            report-lambda.zip \
+            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/report-lambda-${GITHUB_SHA}.zip
+
+      # ========================================================
+      # VALIDATE REPORT STACK
+      # ========================================================
+
+      - name: Validate Report CloudFormation template
+        run: |
+          aws cloudformation validate-template \
+            --template-body file://cloudformation/report-stack.yaml
+
+      # ========================================================
+      # DEPLOY REPORT STACK
+      # ========================================================
+
+      - name: Deploy Report Stack
+        run: |
+          aws cloudformation deploy \
+            --template-file cloudformation/report-stack.yaml \
+            --stack-name cloudmart-dev-report \
+            --region ap-south-1 \
+            --parameter-overrides \
+              Environment=dev \
+              ReportLambdaS3Key=lambda/report-lambda-${GITHUB_SHA}.zip \
+            --no-fail-on-empty-changeset
+
+      # ========================================================
+      # CHECK STACK STATUS
+      # ========================================================
+
+      - name: Check Report Stack Status
+        if: always()
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-report \
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text
+
+      # ========================================================
+      # SHOW STACK EVENTS IF FAILURE
+      # ========================================================
+
+      - name: Show Report Stack Events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name cloudmart-dev-report \
+            --region ap-south-1 \
+            --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
+            --output table
+
+      # ========================================================
+      # SHOW STACK OUTPUTS
+      # ========================================================
+
+      - name: Show Report Stack Outputs
+        if: success()
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-report \
+            --region ap-south-1 \
+            --query "Stacks[0].Outputs" \
+            --output table

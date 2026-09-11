@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: CloudMart Daily Reporting Stack
+
+
+# ============================================================
+# PARAMETERS
+# ============================================================
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+  ReportLambdaS3Key:
+    Type: String
+    Default: lambda/report-lambda.zip
+    Description: S3 key containing the Report Lambda deployment package
+
+
+# ============================================================
+# RESOURCES
+# ============================================================
+
+Resources:
+
+
+  # ==========================================================
+  # REPORT LAMBDA
+  # ==========================================================
+
+  ReportLambda:
+    Type: AWS::Lambda::Function
+
+    Properties:
+
+      FunctionName:
+        !Sub CloudMart-${Environment}-Report
+
+      Runtime: python3.12
+
+      Handler: index.lambda_handler
+
+      Role:
+        Fn::ImportValue:
+          Fn::Sub: CloudMart-${Environment}-ReportLambdaRoleArn
+
+      Timeout: 60
+
+      MemorySize: 256
+
+      VpcConfig:
+
+        SubnetIds:
+
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-PrivateSubnetId
+
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
+
+        SecurityGroupIds:
+
+          - Fn::ImportValue:
+              Fn::Sub: CloudMart-${Environment}-LambdaSecurityGroupId
+
+      Environment:
+
+        Variables:
+
+          ENVIRONMENT:
+            !Ref Environment
+
+      Code:
+
+        S3Bucket:
+          !Sub cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
+
+        S3Key:
+          !Ref ReportLambdaS3Key
+
+
+  # ==========================================================
+  # EVENTBRIDGE DAILY SCHEDULE
+  # ==========================================================
+
+  DailyReportSchedule:
+    Type: AWS::Events::Rule
+
+    Properties:
+
+      Name:
+        !Sub CloudMart-${Environment}-DailyReportSchedule
+
+      Description:
+        !Sub CloudMart ${Environment} daily report schedule
+
+      ScheduleExpression: cron(0 0 * * ? *)
+
+      State: ENABLED
+
+      Targets:
+
+        - Arn:
+            !GetAtt ReportLambda.Arn
+
+          Id:
+            ReportLambdaTarget
+
+
+  # ==========================================================
+  # PERMISSION FOR EVENTBRIDGE TO INVOKE REPORT LAMBDA
+  # ==========================================================
+
+  ReportLambdaEventBridgePermission:
+    Type: AWS::Lambda::Permission
+
+    Properties:
+
+      FunctionName:
+        !Ref ReportLambda
+
+      Action:
+        lambda:InvokeFunction
+
+      Principal:
+        events.amazonaws.com
+
+      SourceArn:
+        !GetAtt DailyReportSchedule.Arn
+
+
+# ============================================================
+# OUTPUTS
+# ============================================================
+
+Outputs:
+
+
+  # ==========================================================
+  # REPORT LAMBDA ARN
+  # ==========================================================
+
+  ReportLambdaArn:
+
+    Description: CloudMart Report Lambda ARN
+
+    Value:
+      !GetAtt ReportLambda.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-ReportLambdaArn
+
+
+  # ==========================================================
+  # REPORT LAMBDA NAME
+  # ==========================================================
+
+  ReportLambdaName:
+
+    Description: CloudMart Report Lambda name
+
+    Value:
+      !Ref ReportLambda
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-ReportLambdaName
+
+
+  # ==========================================================
+  # DAILY REPORT EVENTBRIDGE RULE ARN
+  # ==========================================================
+
+  DailyReportScheduleArn:
+
+    Description: CloudMart daily report EventBridge rule ARN
+
+    Value:
+      !GetAtt DailyReportSchedule.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-DailyReportScheduleArn
