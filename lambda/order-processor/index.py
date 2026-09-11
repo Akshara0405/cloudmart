@@ -1,3 +1,4 @@
+
 import json
 import logging
 import os
@@ -57,6 +58,13 @@ def response(status_code, body):
 
 def get_parameter(name):
 
+    logger.info(json.dumps({
+        "level": "INFO",
+        "service": "order-processor",
+        "action": "ssm_parameter_read_started",
+        "parameter": name
+    }))
+
     try:
 
         result = ssm.get_parameter(
@@ -64,7 +72,16 @@ def get_parameter(name):
             WithDecryption=True
         )
 
-        return result["Parameter"]["Value"]
+        value = result["Parameter"]["Value"]
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "ssm_parameter_read_success",
+            "parameter": name
+        }))
+
+        return value
 
     except Exception as error:
 
@@ -87,11 +104,57 @@ def get_db_connection():
 
     try:
 
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "database_parameters_read_started"
+        }))
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "reading_database_host"
+        }))
+
         host = get_parameter(DB_HOST_PARAMETER)
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "reading_database_port"
+        }))
+
         port = int(get_parameter(DB_PORT_PARAMETER))
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "reading_database_name"
+        }))
+
         database = get_parameter(DB_NAME_PARAMETER)
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "reading_database_username"
+        }))
+
         username = get_parameter(DB_USERNAME_PARAMETER)
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "reading_database_password"
+        }))
+
         password = get_parameter(DB_PASSWORD_PARAMETER)
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "database_parameters_read_success"
+        }))
 
         logger.info(json.dumps({
             "level": "INFO",
@@ -136,7 +199,7 @@ def get_db_connection():
 
 
 # ============================================================
-# EVENTBRIDGE EVENT PUBLISHER
+# CLOUDWATCH METRIC PUBLISHER
 # ============================================================
 
 def publish_metric(metric_name):
@@ -177,6 +240,10 @@ def publish_metric(metric_name):
             "error": str(error)
         }))
 
+
+# ============================================================
+# EVENTBRIDGE EVENT PUBLISHER
+# ============================================================
 
 def publish_order_event(detail_type, detail):
 
@@ -532,6 +599,13 @@ def create_order(event):
             # CHECK CUSTOMER
             # =================================================
 
+            logger.info(json.dumps({
+                "level": "INFO",
+                "service": "order-processor",
+                "action": "customer_lookup_started",
+                "customer_id": customer_id
+            }))
+
             cursor.execute(
                 """
                 SELECT
@@ -547,6 +621,13 @@ def create_order(event):
             )
 
             customer = cursor.fetchone()
+
+            logger.info(json.dumps({
+                "level": "INFO",
+                "service": "order-processor",
+                "action": "customer_lookup_completed",
+                "customer_found": bool(customer)
+            }))
 
             if not customer:
 
@@ -588,6 +669,14 @@ def create_order(event):
                 product_id = item["product_id"]
                 quantity = item["quantity"]
 
+                logger.info(json.dumps({
+                    "level": "INFO",
+                    "service": "order-processor",
+                    "action": "product_lookup_started",
+                    "product_id": product_id,
+                    "quantity": quantity
+                }))
+
                 cursor.execute(
                     """
                     SELECT
@@ -606,6 +695,14 @@ def create_order(event):
                 )
 
                 product = cursor.fetchone()
+
+                logger.info(json.dumps({
+                    "level": "INFO",
+                    "service": "order-processor",
+                    "action": "product_lookup_completed",
+                    "product_id": product_id,
+                    "product_found": bool(product)
+                }))
 
                 if not product:
 
