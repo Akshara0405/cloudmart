@@ -1,0 +1,804 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  CloudMart EC2 Flask Dashboard Stack.
+  Creates the EC2 instance, IAM role and dashboard infrastructure.
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 key pair for emergency SSH access
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+
+Resources:
+
+  # ============================================================
+  # EC2 IAM ROLE
+  # ============================================================
+
+  DashboardInstanceRole:
+    Type: AWS::IAM::Role
+
+    Properties:
+
+      RoleName:
+        !Sub CloudMart-${Environment}-Dashboard-EC2-Role
+
+      AssumeRolePolicyDocument:
+
+        Version: '2012-10-17'
+
+        Statement:
+
+          - Effect: Allow
+
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+      Policies:
+
+        - PolicyName: DashboardSSMAccess
+
+          PolicyDocument:
+
+            Version: '2012-10-17'
+
+            Statement:
+
+              - Effect: Allow
+
+                Action:
+                  - ssm:GetParameter
+
+                Resource:
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/storage/reports-bucket
+
+
+        - PolicyName: DashboardS3Access
+
+          PolicyDocument:
+
+            Version: '2012-10-17'
+
+            Statement:
+
+              - Effect: Allow
+
+                Action:
+                  - s3:ListBucket
+
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
+
+
+              - Effect: Allow
+
+                Action:
+                  - s3:GetObject
+
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}/*
+
+
+  # ============================================================
+  # INSTANCE PROFILE
+  # ============================================================
+
+  DashboardInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+
+    Properties:
+
+      InstanceProfileName:
+        !Sub CloudMart-${Environment}-Dashboard-InstanceProfile
+
+      Roles:
+        - !Ref DashboardInstanceRole
+
+
+  # ============================================================
+  # EC2 INSTANCE
+  # ============================================================
+
+  DashboardEC2:
+    Type: AWS::EC2::Instance
+
+    Properties:
+
+      ImageId:
+        !Ref LatestAmiId
+
+      InstanceType:
+        !Ref InstanceType
+
+      KeyName:
+        !Ref KeyName
+
+      IamInstanceProfile:
+        !Ref DashboardInstanceProfile
+
+      SubnetId:
+        Fn::ImportValue:
+          !Sub CloudMart-${Environment}-PublicSubnetId
+
+      SecurityGroupIds:
+
+        - Fn::ImportValue:
+            !Sub CloudMart-${Environment}-EC2SecurityGroupId
+
+      Tags:
+
+        - Key: Name
+          Value: !Sub CloudMart-${Environment}-Dashboard
+
+        - Key: Project
+          Value: CloudMart
+
+        - Key: Environment
+          Value: !Ref Environment
+
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+
+            set -e
+
+            # ====================================================
+            # SYSTEM UPDATE
+            # ====================================================
+
+            dnf update -y
+
+            # ====================================================
+            # INSTALL PYTHON + GIT + NGINX
+            # ====================================================
+
+            dnf install -y python3 python3-pip git nginx
+
+            # ====================================================
+            # CREATE DASHBOARD DIRECTORY
+            # ====================================================
+
+            mkdir -p /opt/cloudmart-dashboard
+
+            # ====================================================
+            # CREATE APPLICATION
+            # ====================================================
+
+            cat > /opt/cloudmart-dashboard/app.py <<'PYTHON'
+            import io
+            import logging
+            import os
+            from datetime import datetime
+
+            import boto3
+            import pymysql
+
+            from flask import Flask, render_template
+
+            app = Flask(__name__)
+
+            logging.basicConfig(level=logging.INFO)
+
+            ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+
+            DB_HOST_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/database/host"
+            )
+
+            DB_PORT_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/database/port"
+            )
+
+            DB_NAME_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/database/name"
+            )
+
+            DB_USERNAME_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/database/username"
+            )
+
+            DB_PASSWORD_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/database/password"
+            )
+
+            REPORTS_BUCKET_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/storage/reports-bucket"
+            )
+
+            ssm = boto3.client("ssm")
+
+            s3 = boto3.client("s3")
+
+
+            def get_parameter(name):
+
+                result = ssm.get_parameter(
+                    Name=name,
+                    WithDecryption=True
+                )
+
+                return result["Parameter"]["Value"]
+
+
+            def get_db_connection():
+
+                host = get_parameter(DB_HOST_PARAMETER)
+
+                port = int(
+                    get_parameter(DB_PORT_PARAMETER)
+                )
+
+                database = get_parameter(
+                    DB_NAME_PARAMETER
+                )
+
+                username = get_parameter(
+                    DB_USERNAME_PARAMETER
+                )
+
+                password = get_parameter(
+                    DB_PASSWORD_PARAMETER
+                )
+
+                return pymysql.connect(
+                    host=host,
+                    port=port,
+                    user=username,
+                    password=password,
+                    database=database,
+                    connect_timeout=10,
+                    cursorclass=pymysql.cursors.DictCursor
+                )
+
+
+            def get_products():
+
+                connection = None
+
+                try:
+
+                    connection = get_db_connection()
+
+                    with connection.cursor() as cursor:
+
+                        cursor.execute(
+                            """
+                            SELECT
+                                id,
+                                name,
+                                description,
+                                price,
+                                category,
+                                stock_count
+                            FROM products
+                            WHERE is_deleted = FALSE
+                            ORDER BY id
+                            """
+                        )
+
+                        return cursor.fetchall()
+
+                finally:
+
+                    if connection:
+                        connection.close()
+
+
+            def get_recent_orders():
+
+                connection = None
+
+                try:
+
+                    connection = get_db_connection()
+
+                    with connection.cursor() as cursor:
+
+                        cursor.execute(
+                            """
+                            SELECT
+                                o.id AS order_id,
+                                o.customer_id,
+                                o.status,
+                                o.created_at,
+                                oi.product_id,
+                                p.name AS product_name,
+                                oi.quantity,
+                                oi.price
+                            FROM orders o
+                            INNER JOIN order_items oi
+                                ON o.id = oi.order_id
+                            INNER JOIN products p
+                                ON oi.product_id = p.id
+                            WHERE o.is_deleted = FALSE
+                            AND oi.is_deleted = FALSE
+                            ORDER BY o.created_at DESC, oi.id DESC
+                            LIMIT 20
+                            """
+                        )
+
+                        return cursor.fetchall()
+
+                finally:
+
+                    if connection:
+                        connection.close()
+
+
+            def get_latest_report():
+
+                bucket_name = get_parameter(
+                    REPORTS_BUCKET_PARAMETER
+                )
+
+                result = s3.list_objects_v2(
+                    Bucket=bucket_name,
+                    Prefix="reports/"
+                )
+
+                contents = result.get("Contents", [])
+
+                if not contents:
+
+                    return None
+
+                latest = max(
+                    contents,
+                    key=lambda item: item["LastModified"]
+                )
+
+                object_key = latest["Key"]
+
+                url = s3.generate_presigned_url(
+                    "get_object",
+                    Params={
+                        "Bucket": bucket_name,
+                        "Key": object_key
+                    },
+                    ExpiresIn=3600
+                )
+
+                return {
+                    "key": object_key,
+                    "url": url,
+                    "last_modified": latest["LastModified"]
+                }
+
+
+            @app.route("/")
+            def dashboard():
+
+                try:
+
+                    products = get_products()
+
+                    orders = get_recent_orders()
+
+                    latest_report = get_latest_report()
+
+                    return render_template(
+                        "index.html",
+                        products=products,
+                        orders=orders,
+                        latest_report=latest_report,
+                        generated_at=datetime.now()
+                    )
+
+                except Exception as error:
+
+                    app.logger.exception(
+                        "Dashboard error"
+                    )
+
+                    return (
+                        f"""
+                        <h1>CloudMart Dashboard</h1>
+                        <h2>Dashboard Error</h2>
+                        <pre>{error}</pre>
+                        """,
+                        500
+                    )
+
+
+            @app.route("/health")
+            def health():
+
+                return {
+                    "status": "healthy",
+                    "service": "cloudmart-dashboard"
+                }
+
+
+            if __name__ == "__main__":
+
+                app.run(
+                    host="127.0.0.1",
+                    port=5000
+                )
+
+            PYTHON
+
+            # ====================================================
+            # CREATE HTML TEMPLATE
+            # ====================================================
+
+            mkdir -p /opt/cloudmart-dashboard/templates
+
+            cat > /opt/cloudmart-dashboard/templates/index.html <<'HTML'
+            <!DOCTYPE html>
+            <html lang="en">
+
+            <head>
+
+                <meta charset="UTF-8">
+
+                <meta name="viewport"
+                      content="width=device-width, initial-scale=1.0">
+
+                <title>CloudMart Operations Dashboard</title>
+
+                <style>
+
+                    body {
+                        font-family: Arial, sans-serif;
+                        margin: 0;
+                        padding: 30px;
+                        background: #f5f6f8;
+                    }
+
+                    h1 {
+                        margin-bottom: 5px;
+                    }
+
+                    .subtitle {
+                        color: #666;
+                        margin-bottom: 30px;
+                    }
+
+                    .card {
+                        background: white;
+                        padding: 20px;
+                        margin-bottom: 25px;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    }
+
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                    }
+
+                    th,
+                    td {
+                        padding: 10px;
+                        border-bottom: 1px solid #ddd;
+                        text-align: left;
+                    }
+
+                    th {
+                        background: #f0f1f3;
+                    }
+
+                    .low-stock {
+                        font-weight: bold;
+                    }
+
+                    .report-link {
+                        display: inline-block;
+                        padding: 10px 15px;
+                        background: #222;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 5px;
+                    }
+
+                </style>
+
+            </head>
+
+            <body>
+
+                <h1>CloudMart Operations Dashboard</h1>
+
+                <div class="subtitle">
+                    Environment: dev
+                </div>
+
+
+                <div class="card">
+
+                    <h2>Latest Daily Report</h2>
+
+                    {% if latest_report %}
+
+                        <p>
+                            {{ latest_report.key }}
+                        </p>
+
+                        <p>
+                            Last modified:
+                            {{ latest_report.last_modified }}
+                        </p>
+
+                        <a
+                            class="report-link"
+                            href="{{ latest_report.url }}"
+                            target="_blank">
+                            Open Latest Report
+                        </a>
+
+                    {% else %}
+
+                        <p>No report available.</p>
+
+                    {% endif %}
+
+                </div>
+
+
+                <div class="card">
+
+                    <h2>Current Product Inventory</h2>
+
+                    <table>
+
+                        <tr>
+                            <th>ID</th>
+                            <th>Product</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                        </tr>
+
+                        {% for product in products %}
+
+                        <tr>
+
+                            <td>
+                                {{ product.id }}
+                            </td>
+
+                            <td>
+                                {{ product.name }}
+                            </td>
+
+                            <td>
+                                {{ product.category }}
+                            </td>
+
+                            <td>
+                                ₹{{ product.price }}
+                            </td>
+
+                            <td class="{% if product.stock_count <= 5 %}low-stock{% endif %}">
+                                {{ product.stock_count }}
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </table>
+
+                </div>
+
+
+                <div class="card">
+
+                    <h2>Recent Orders</h2>
+
+                    <table>
+
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Status</th>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Price</th>
+                            <th>Created</th>
+                        </tr>
+
+                        {% for order in orders %}
+
+                        <tr>
+
+                            <td>
+                                {{ order.order_id }}
+                            </td>
+
+                            <td>
+                                {{ order.customer_id }}
+                            </td>
+
+                            <td>
+                                {{ order.status }}
+                            </td>
+
+                            <td>
+                                {{ order.product_name }}
+                            </td>
+
+                            <td>
+                                {{ order.quantity }}
+                            </td>
+
+                            <td>
+                                ₹{{ order.price }}
+                            </td>
+
+                            <td>
+                                {{ order.created_at }}
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </table>
+
+                </div>
+
+            </body>
+
+            </html>
+            HTML
+
+            # ====================================================
+            # CREATE REQUIREMENTS
+            # ====================================================
+
+            cat > /opt/cloudmart-dashboard/requirements.txt <<'REQUIREMENTS'
+            Flask
+            boto3
+            PyMySQL
+            gunicorn
+            REQUIREMENTS
+
+            # ====================================================
+            # INSTALL PYTHON DEPENDENCIES
+            # ====================================================
+
+            python3 -m pip install \
+              -r /opt/cloudmart-dashboard/requirements.txt
+
+            # ====================================================
+            # CREATE SYSTEMD SERVICE
+            # ====================================================
+
+            cat > /etc/systemd/system/cloudmart-dashboard.service <<'SERVICE'
+            [Unit]
+            Description=CloudMart Flask Dashboard
+            After=network.target
+
+            [Service]
+            User=root
+            WorkingDirectory=/opt/cloudmart-dashboard
+            Environment="ENVIRONMENT=${Environment}"
+
+            ExecStart=/usr/local/bin/gunicorn \
+              --workers 2 \
+              --bind 127.0.0.1:5000 \
+              app:app
+
+            Restart=always
+            RestartSec=5
+
+            [Install]
+            WantedBy=multi-user.target
+            SERVICE
+
+            # ====================================================
+            # CONFIGURE NGINX
+            # ====================================================
+
+            cat > /etc/nginx/conf.d/cloudmart-dashboard.conf <<'NGINX'
+            server {
+
+                listen 80;
+
+                server_name _;
+
+                location / {
+
+                    proxy_pass http://127.0.0.1:5000;
+
+                    proxy_set_header Host $host;
+
+                    proxy_set_header X-Real-IP $remote_addr;
+
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+            }
+            NGINX
+
+            # ====================================================
+            # START SERVICES
+            # ====================================================
+
+            systemctl enable cloudmart-dashboard
+
+            systemctl start cloudmart-dashboard
+
+            systemctl enable nginx
+
+            nginx -t
+
+            systemctl restart nginx
+
+
+  # ============================================================
+  # OUTPUTS
+  # ============================================================
+
+Outputs:
+
+  DashboardInstanceId:
+
+    Description: CloudMart dashboard EC2 instance ID
+
+    Value:
+      !Ref DashboardEC2
+
+
+  DashboardPublicIp:
+
+    Description: CloudMart dashboard public IP
+
+    Value:
+      !GetAtt DashboardEC2.PublicIp
+
+
+  DashboardURL:
+
+    Description: CloudMart dashboard URL
+
+    Value:
+      !Sub http://${DashboardEC2.PublicIp}
+
+
+  DashboardInstanceRoleArn:
+
+    Description: CloudMart dashboard EC2 IAM role ARN
+
+    Value:
+      !GetAtt DashboardInstanceRole.Arn

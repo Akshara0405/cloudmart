@@ -240,9 +240,40 @@ Resources:
 
 
   # ============================================================
+  # EC2 DASHBOARD SECURITY GROUP
+  # ============================================================
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+
+    Properties:
+      GroupDescription: Security group for CloudMart EC2 dashboard
+      VpcId: !Ref CloudMartVPC
+
+      SecurityGroupIngress:
+
+        # HTTP dashboard access
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTP access to CloudMart dashboard
+
+      SecurityGroupEgress:
+
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow outbound traffic
+
+      Tags:
+        - Key: Name
+          Value: !Sub CloudMart-${Environment}-EC2-SG
+
+
+  # ============================================================
   # RDS SECURITY GROUP
   #
-  # Only Lambda security group can access RDS MySQL.
+  # Lambda and EC2 dashboard can access RDS MySQL.
   # ============================================================
 
   RDSSecurityGroup:
@@ -254,11 +285,19 @@ Resources:
 
       SecurityGroupIngress:
 
+        # Lambda → RDS
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
-          Description: Allow MySQL only from CloudMart Lambda functions
+          Description: Allow MySQL from CloudMart Lambda functions
+
+        # EC2 Dashboard → RDS
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2SecurityGroup
+          Description: Allow MySQL from CloudMart EC2 dashboard
 
       SecurityGroupEgress:
 
@@ -477,6 +516,18 @@ Outputs:
 
     Export:
       Name: !Sub CloudMart-${Environment}-RDSSecurityGroupId
+
+
+  # ============================================================
+  # EC2 SECURITY GROUP ID
+  # ============================================================
+
+  EC2SecurityGroupId:
+    Description: CloudMart EC2 dashboard security group
+    Value: !Ref EC2SecurityGroup
+
+    Export:
+      Name: !Sub CloudMart-${Environment}-EC2SecurityGroupId
 
 
   # ============================================================

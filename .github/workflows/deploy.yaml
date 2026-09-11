@@ -620,3 +620,56 @@ jobs:
             --region ap-south-1 \
             --query "Stacks[0].Outputs" \
             --output table
+  # ============================================================
+  # DEPLOY EC2 DASHBOARD
+  # ============================================================
+
+  deploy-dashboard:
+
+    name: Deploy EC2 Dashboard
+
+    needs:
+      - deploy-api
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+
+      - name: Validate dashboard stack
+        run: |
+
+          aws cloudformation validate-template \
+            --template-body file://cloudformation/dashboard-stack.yaml
+
+
+      - name: Deploy dashboard stack
+        run: |
+
+          aws cloudformation deploy \
+            --stack-name cloudmart-dev-dashboard \
+            --template-file cloudformation/dashboard-stack.yaml \
+            --parameter-overrides \
+              Environment=dev \
+              KeyName=${{ secrets.EC2_KEY_NAME }} \
+            --capabilities CAPABILITY_NAMED_IAM
+
+
+      - name: Show dashboard outputs
+        run: |
+
+          aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-dashboard \
+            --query "Stacks[0].Outputs"
+            
