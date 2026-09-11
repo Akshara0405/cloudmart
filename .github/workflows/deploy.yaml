@@ -1,4 +1,3 @@
-
 name: CloudMart Infrastructure
 
 on:
@@ -12,7 +11,6 @@ jobs:
 
   # ============================================================
   # CLOUDFORMATION YAML LINTING
-  # Checks ONLY YAML files inside cloudformation/
   # ============================================================
 
   lint-yaml:
@@ -37,7 +35,6 @@ jobs:
 
   # ============================================================
   # NETWORK STACK
-  # Runs only after YAML linting succeeds
   # ============================================================
 
   deploy-network:
@@ -95,7 +92,6 @@ jobs:
 
   # ============================================================
   # DATA STACK
-  # Runs only after Network Stack succeeds
   # ============================================================
 
   deploy-data:
@@ -127,7 +123,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/data-stack.yaml \
-            --stack-name cloudmart-dev-data-newversion\
+            --stack-name cloudmart-dev-data-newversion \
             --region ap-south-1 \
             --parameter-overrides \
               Environment=dev \
@@ -139,7 +135,7 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-data-newversion\
+            --stack-name cloudmart-dev-data-newversion \
             --region ap-south-1 \
             --query "Stacks[0].StackStatus" \
             --output text
@@ -156,7 +152,6 @@ jobs:
 
   # ============================================================
   # IAM STACK
-  # Runs only after Data Stack succeeds
   # ============================================================
 
   deploy-iam:
@@ -225,7 +220,6 @@ jobs:
 
   # ============================================================
   # AUTHENTICATION STACK
-  # Runs only after IAM Stack succeeds
   # ============================================================
 
   deploy-auth:
@@ -257,7 +251,9 @@ jobs:
 
       - name: Upload Authorizer Lambda to S3
         run: |
-          aws s3 cp lambda-authorizer.zip s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/lambda-authorizer-${GITHUB_SHA}.zip
+          aws s3 cp \
+            lambda-authorizer.zip \
+            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/lambda-authorizer-${GITHUB_SHA}.zip
 
       - name: Validate Auth CloudFormation template
         run: |
@@ -304,9 +300,9 @@ jobs:
             --query "Stacks[0].Outputs" \
             --output table
 
+
   # ============================================================
   # API STACK
-  # Runs only after Authentication Stack succeeds
   # ============================================================
 
   deploy-api:
@@ -334,9 +330,13 @@ jobs:
           rm -rf build/product-lambda
           mkdir -p build/product-lambda
           cp lambda/product-lambda/index.py build/product-lambda/index.py
+
           if [ -f lambda/product-lambda/requirements.txt ]; then
-            python -m pip install -r lambda/product-lambda/requirements.txt -t build/product-lambda
+            python -m pip install \
+              -r lambda/product-lambda/requirements.txt \
+              -t build/product-lambda
           fi
+
           cd build/product-lambda
           zip -r ../../product-lambda.zip .
 
@@ -344,15 +344,25 @@ jobs:
         run: |
           rm -rf build/order-processor
           mkdir -p build/order-processor
+
           cp lambda/order-processor/index.py build/order-processor/index.py
-          python -m pip install -r lambda/order-processor/requirements.txt -t build/order-processor
+
+          python -m pip install \
+            -r lambda/order-processor/requirements.txt \
+            -t build/order-processor
+
           cd build/order-processor
           zip -r ../../order-processor.zip .
 
       - name: Upload Lambda ZIPs to S3
         run: |
-          aws s3 cp product-lambda.zip s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/product-lambda-${GITHUB_SHA}.zip
-          aws s3 cp order-processor.zip s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/order-processor-${GITHUB_SHA}.zip
+          aws s3 cp \
+            product-lambda.zip \
+            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/product-lambda-${GITHUB_SHA}.zip
+
+          aws s3 cp \
+            order-processor.zip \
+            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/order-processor-${GITHUB_SHA}.zip
 
       - name: Validate API CloudFormation template
         run: |
@@ -397,6 +407,8 @@ jobs:
             --region ap-south-1 \
             --query "Stacks[0].Outputs" \
             --output table
+
+
   # ============================================================
   # TEMPORARY RDS CONNECTIVITY TEST
   # ============================================================
@@ -444,9 +456,10 @@ jobs:
             --region ap-south-1 \
             --query "Stacks[0].Outputs" \
             --output table
+
+
   # ============================================================
   # TEST PRODUCT LAMBDA
-  # Invokes the existing Product Service Lambda
   # ============================================================
 
   test-product-lambda:
@@ -480,13 +493,22 @@ jobs:
       - name: Show Lambda response
         run: |
           cat response.json
+
+
+  # ============================================================
+  # MONITORING STACK
+  # ============================================================
+
   deploy-monitoring:
     name: Deploy Monitoring Stack
+
     runs-on: ubuntu-latest
+
     needs:
       - deploy-api
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -501,13 +523,15 @@ jobs:
           aws cloudformation deploy \
             --template-file cloudformation/monitoring-stack.yaml \
             --stack-name cloudmart-dev-monitoring \
+            --region ap-south-1 \
             --parameter-overrides \
               Environment=dev \
-              AlertEmail=${{ secrets.ALERT_EMAIL }} \
+              AlertEmail="${{ secrets.ALERT_EMAIL }}" \
             --capabilities CAPABILITY_NAMED_IAM
+
+
   # ============================================================
   # REPORT STACK
-  # Packages and deploys the Daily Report Lambda
   # ============================================================
 
   deploy-report:
@@ -530,16 +554,13 @@ jobs:
         run: |
           aws sts get-caller-identity
 
-      # ========================================================
-      # PACKAGE REPORT LAMBDA
-      # ========================================================
-
       - name: Package Report Lambda
         run: |
           rm -rf build/report-lambda
           mkdir -p build/report-lambda
 
-          cp lambda/report-lambda/index.py build/report-lambda/index.py
+          cp lambda/report-lambda/index.py \
+            build/report-lambda/index.py
 
           python -m pip install \
             -r lambda/report-lambda/requirements.txt \
@@ -548,28 +569,16 @@ jobs:
           cd build/report-lambda
           zip -r ../../report-lambda.zip .
 
-      # ========================================================
-      # UPLOAD REPORT LAMBDA ZIP
-      # ========================================================
-
       - name: Upload Report Lambda to S3
         run: |
           aws s3 cp \
             report-lambda.zip \
             s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/report-lambda-${GITHUB_SHA}.zip
 
-      # ========================================================
-      # VALIDATE REPORT STACK
-      # ========================================================
-
       - name: Validate Report CloudFormation template
         run: |
           aws cloudformation validate-template \
             --template-body file://cloudformation/report-stack.yaml
-
-      # ========================================================
-      # DEPLOY REPORT STACK
-      # ========================================================
 
       - name: Deploy Report Stack
         run: |
@@ -582,10 +591,6 @@ jobs:
               ReportLambdaS3Key=lambda/report-lambda-${GITHUB_SHA}.zip \
             --no-fail-on-empty-changeset
 
-      # ========================================================
-      # CHECK STACK STATUS
-      # ========================================================
-
       - name: Check Report Stack Status
         if: always()
         run: |
@@ -594,10 +599,6 @@ jobs:
             --region ap-south-1 \
             --query "Stacks[0].StackStatus" \
             --output text
-
-      # ========================================================
-      # SHOW STACK EVENTS IF FAILURE
-      # ========================================================
 
       - name: Show Report Stack Events
         if: failure()
@@ -608,10 +609,6 @@ jobs:
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
-      # ========================================================
-      # SHOW STACK OUTPUTS
-      # ========================================================
-
       - name: Show Report Stack Outputs
         if: success()
         run: |
@@ -620,8 +617,10 @@ jobs:
             --region ap-south-1 \
             --query "Stacks[0].Outputs" \
             --output table
+
+
   # ============================================================
-  # DEPLOY EC2 DASHBOARD
+  # EC2 DASHBOARD
   # ============================================================
 
   deploy-dashboard:
@@ -638,38 +637,51 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
 
-
       - name: Validate dashboard stack
         run: |
-
           aws cloudformation validate-template \
             --template-body file://cloudformation/dashboard-stack.yaml
 
-
       - name: Deploy dashboard stack
         run: |
-
           aws cloudformation deploy \
             --stack-name cloudmart-dev-dashboard \
             --template-file cloudformation/dashboard-stack.yaml \
+            --region ap-south-1 \
             --parameter-overrides \
               Environment=dev \
-              KeyName=${{ secrets.EC2_KEY_NAME }} \
-            --capabilities CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
 
-
-      - name: Show dashboard outputs
+      - name: Check dashboard stack status
+        if: always()
         run: |
-
           aws cloudformation describe-stacks \
             --stack-name cloudmart-dev-dashboard \
-            --query "Stacks[0].Outputs"
-            
+            --region ap-south-1 \
+            --query "Stacks[0].StackStatus" \
+            --output text
+
+      - name: Show dashboard stack events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name cloudmart-dev-dashboard \
+            --region ap-south-1 \
+            --query "StackEvents[0:20].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
+            --output table
+
+      - name: Show dashboard outputs
+        if: success()
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name cloudmart-dev-dashboard \
+            --region ap-south-1 \
+            --query "Stacks[0].Outputs" \
+            --output table
