@@ -323,11 +323,19 @@ Resources:
 
       SecurityGroupIngress:
 
+        # Lambda → VPC Endpoints
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
           Description: Allow HTTPS from CloudMart Lambda functions
+
+        # EC2 Dashboard → VPC Endpoints
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref EC2SecurityGroup
+          Description: Allow HTTPS from CloudMart EC2 dashboard
 
       SecurityGroupEgress:
 
