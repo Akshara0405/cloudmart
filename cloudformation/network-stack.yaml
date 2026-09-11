@@ -443,6 +443,34 @@ Resources:
           Value: !Sub CloudMart-${Environment}-SNS-Endpoint
 
 
+  # ============================================================
+  # CLOUDWATCH MONITORING INTERFACE VPC ENDPOINT
+  #
+  # Required for Lambda functions in private subnets to publish
+  # custom CloudWatch metrics without using a NAT Gateway.
+  # ============================================================
+
+  CloudWatchMonitoringVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+
+    Properties:
+      VpcId: !Ref CloudMartVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.monitoring
+      VpcEndpointType: Interface
+
+      SubnetIds:
+        - !Ref PrivateSubnet
+
+      SecurityGroupIds:
+        - !Ref VPCEndpointSecurityGroup
+
+      PrivateDnsEnabled: true
+
+      Tags:
+        - Key: Name
+          Value: !Sub CloudMart-${Environment}-CloudWatch-Monitoring-Endpoint
+
+
 # ================================================================
 # OUTPUTS
 # ================================================================

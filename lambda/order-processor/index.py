@@ -204,7 +204,22 @@ def get_db_connection():
 
 def publish_metric(metric_name):
 
+    logger.info(json.dumps({
+        "level": "INFO",
+        "service": "order-processor",
+        "action": "metric_publish_started",
+        "metric_name": metric_name
+    }))
+
     try:
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "cloudwatch_put_metric_data_started",
+            "metric_name": metric_name,
+            "namespace": "cloudmart"
+        }))
 
         cloudwatch.put_metric_data(
             Namespace="cloudmart",
@@ -222,6 +237,13 @@ def publish_metric(metric_name):
                 }
             ]
         )
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "cloudwatch_put_metric_data_completed",
+            "metric_name": metric_name
+        }))
 
         logger.info(json.dumps({
             "level": "INFO",
@@ -247,7 +269,24 @@ def publish_metric(metric_name):
 
 def publish_order_event(detail_type, detail):
 
+    logger.info(json.dumps({
+        "level": "INFO",
+        "service": "order-processor",
+        "action": "event_publish_started",
+        "detail_type": detail_type,
+        "order_id": detail.get("order_id")
+    }))
+
     try:
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "eventbridge_put_events_started",
+            "detail_type": detail_type,
+            "event_bus": "default",
+            "order_id": detail.get("order_id")
+        }))
 
         result = events.put_events(
             Entries=[
@@ -259,6 +298,15 @@ def publish_order_event(detail_type, detail):
                 }
             ]
         )
+
+        logger.info(json.dumps({
+            "level": "INFO",
+            "service": "order-processor",
+            "action": "eventbridge_put_events_completed",
+            "detail_type": detail_type,
+            "order_id": detail.get("order_id"),
+            "failed_entry_count": result.get("FailedEntryCount", 0)
+        }))
 
         failed_count = result.get("FailedEntryCount", 0)
 
