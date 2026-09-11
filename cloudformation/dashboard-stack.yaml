@@ -244,6 +244,11 @@ Resources:
 
             ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 
+            AWS_REGION = os.environ.get(
+                "AWS_REGION",
+                "ap-south-1"
+            )
+
             DB_HOST_PARAMETER = (
                 f"/cloudmart/{ENVIRONMENT}/database/host"
             )
@@ -268,9 +273,18 @@ Resources:
                 f"/cloudmart/{ENVIRONMENT}/storage/reports-bucket"
             )
 
-            ssm = boto3.client("ssm")
+            # Explicitly specify AWS region.
+            # This prevents botocore.exceptions.NoRegionError.
 
-            s3 = boto3.client("s3")
+            ssm = boto3.client(
+                "ssm",
+                region_name=AWS_REGION
+            )
+
+            s3 = boto3.client(
+                "s3",
+                region_name=AWS_REGION
+            )
 
 
             def get_parameter(name):
@@ -752,6 +766,7 @@ Resources:
             User=root
             WorkingDirectory=/opt/cloudmart-dashboard
             Environment="ENVIRONMENT=${Environment}"
+            Environment="AWS_REGION=ap-south-1"
 
             ExecStart=/usr/local/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
 
