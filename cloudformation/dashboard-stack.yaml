@@ -169,29 +169,64 @@ Resources:
           !Sub |
             #!/bin/bash
 
+            # ====================================================
+            # USERDATA LOGGING
+            # ====================================================
+
+            exec > >(tee /var/log/cloudmart-userdata.log | logger -t cloudmart-userdata -s 2>/dev/console) 2>&1
+
+            echo "===================================================="
+            echo "CloudMart Dashboard UserData started"
+            echo "===================================================="
+
             set -e
 
             # ====================================================
             # SYSTEM UPDATE
             # ====================================================
 
+            echo "Updating system..."
+
             dnf update -y
 
             # ====================================================
-            # INSTALL PYTHON + GIT + NGINX
+            # INSTALL REQUIRED PACKAGES
             # ====================================================
 
-            dnf install -y python3 python3-pip git nginx
+            echo "Installing Python, Git, Nginx and SSM Agent..."
+
+            dnf install -y \
+              python3 \
+              python3-pip \
+              git \
+              nginx \
+              amazon-ssm-agent
+
+            # ====================================================
+            # START SSM AGENT
+            # ====================================================
+
+            echo "Starting Amazon SSM Agent..."
+
+            systemctl enable amazon-ssm-agent
+            systemctl start amazon-ssm-agent
+
+            systemctl status amazon-ssm-agent --no-pager || true
 
             # ====================================================
             # CREATE DASHBOARD DIRECTORY
             # ====================================================
 
+            echo "Creating dashboard directory..."
+
             mkdir -p /opt/cloudmart-dashboard
+            mkdir -p /opt/cloudmart-dashboard/templates
 
             # ====================================================
             # CREATE APPLICATION
             # ====================================================
+
+            echo "Creating Flask application..."
 
             cat > /opt/cloudmart-dashboard/app.py <<'PYTHON'
             import logging
@@ -450,7 +485,7 @@ Resources:
             # CREATE HTML TEMPLATE
             # ====================================================
 
-            mkdir -p /opt/cloudmart-dashboard/templates
+            echo "Creating HTML template..."
 
             cat > /opt/cloudmart-dashboard/templates/index.html <<'HTML'
             <!DOCTYPE html>
@@ -529,7 +564,7 @@ Resources:
                 <h1>CloudMart Operations Dashboard</h1>
 
                 <div class="subtitle">
-                    Environment: dev
+                    Environment: ${Environment}
                 </div>
 
                 <div class="card">
@@ -673,6 +708,8 @@ Resources:
             # CREATE REQUIREMENTS
             # ====================================================
 
+            echo "Creating Python requirements..."
+
             cat > /opt/cloudmart-dashboard/requirements.txt <<'REQUIREMENTS'
             Flask
             boto3
@@ -684,39 +721,52 @@ Resources:
             # INSTALL PYTHON DEPENDENCIES
             # ====================================================
 
+            echo "Installing Python dependencies..."
+
             python3 -m pip install \
               -r /opt/cloudmart-dashboard/requirements.txt
+
+            # ====================================================
+            # VERIFY GUNICORN
+            # ====================================================
+
+            echo "Checking Gunicorn installation..."
+
+            command -v gunicorn
+
+            gunicorn --version
 
             # ====================================================
             # CREATE SYSTEMD SERVICE
             # ====================================================
 
+            echo "Creating CloudMart dashboard systemd service..."
+
             cat > /etc/systemd/system/cloudmart-dashboard.service <<'SERVICE'
             [Unit]
             Description=CloudMart Flask Dashboard
-            After=network.target
+            After=network-online.target
+            Wants=network-online.target
 
             [Service]
             User=root
             WorkingDirectory=/opt/cloudmart-dashboard
             Environment="ENVIRONMENT=${Environment}"
 
-            ExecStart=/usr/local/bin/gunicorn \
-              --workers 2 \
-              --bind 127.0.0.1:5000 \
-              app:app
+            ExecStart=/usr/local/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
 
             Restart=always
             RestartSec=5
 
             [Install]
             WantedBy=multi-user.target
-
             SERVICE
 
             # ====================================================
             # CONFIGURE NGINX
             # ====================================================
+
+            echo "Configuring Nginx..."
 
             cat > /etc/nginx/conf.d/cloudmart-dashboard.conf <<'NGINX'
             server {
@@ -743,18 +793,52 @@ Resources:
             NGINX
 
             # ====================================================
-            # START SERVICES
+            # START DASHBOARD SERVICE
             # ====================================================
+
+            echo "Starting CloudMart dashboard..."
+
+            systemctl daemon-reload
 
             systemctl enable cloudmart-dashboard
 
-            systemctl start cloudmart-dashboard
+            systemctl restart cloudmart-dashboard
+
+            sleep 5
+
+            systemctl status cloudmart-dashboard --no-pager || true
+
+            # ====================================================
+            # TEST FLASK APPLICATION
+            # ====================================================
+
+            echo "Testing Flask health endpoint..."
+
+            curl --fail http://127.0.0.1:5000/health
+
+            # ====================================================
+            # START NGINX
+            # ====================================================
+
+            echo "Starting Nginx..."
 
             systemctl enable nginx
 
             nginx -t
 
             systemctl restart nginx
+
+            # ====================================================
+            # FINAL STATUS
+            # ====================================================
+
+            echo "===================================================="
+            echo "CloudMart Dashboard UserData completed successfully"
+            echo "===================================================="
+
+            systemctl status amazon-ssm-agent --no-pager || true
+            systemctl status cloudmart-dashboard --no-pager || true
+            systemctl status nginx --no-pager || true
 
 
 # ============================================================
