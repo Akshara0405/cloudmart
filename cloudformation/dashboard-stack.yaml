@@ -17,8 +17,6 @@ Parameters:
     Type: String
     Default: t3.micro
 
- 
-
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
@@ -103,7 +101,6 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
 
-
               - Effect: Allow
 
                 Action:
@@ -143,9 +140,6 @@ Resources:
 
       InstanceType:
         !Ref InstanceType
-
-     
-         
 
       IamInstanceProfile:
         !Ref DashboardInstanceProfile
@@ -200,7 +194,6 @@ Resources:
             # ====================================================
 
             cat > /opt/cloudmart-dashboard/app.py <<'PYTHON'
-            import io
             import logging
             import os
             from datetime import datetime
@@ -539,7 +532,6 @@ Resources:
                     Environment: dev
                 </div>
 
-
                 <div class="card">
 
                     <h2>Latest Daily Report</h2>
@@ -569,7 +561,6 @@ Resources:
                     {% endif %}
 
                 </div>
-
 
                 <div class="card">
 
@@ -616,7 +607,6 @@ Resources:
                     </table>
 
                 </div>
-
 
                 <div class="card">
 
@@ -721,6 +711,7 @@ Resources:
 
             [Install]
             WantedBy=multi-user.target
+
             SERVICE
 
             # ====================================================
@@ -745,7 +736,9 @@ Resources:
                     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
                     proxy_set_header X-Forwarded-Proto $scheme;
+
                 }
+
             }
             NGINX
 
@@ -764,9 +757,9 @@ Resources:
             systemctl restart nginx
 
 
-  # ============================================================
-  # OUTPUTS
-  # ============================================================
+# ============================================================
+# OUTPUTS
+# ============================================================
 
 Outputs:
 
