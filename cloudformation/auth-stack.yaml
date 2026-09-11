@@ -238,10 +238,9 @@ Outputs:
       CloudMart Lambda Authorizer invoke ARN
 
     Value:
-      !Sub
+      !Sub 
         - arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerArn}/invocations
-        - AuthorizerArn:
-            !GetAtt AuthorizerLambda.Arn
+        - AuthorizerArn: !GetAtt AuthorizerLambda.Arn
 
     Export:
       Name:
