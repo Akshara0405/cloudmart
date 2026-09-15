@@ -84,6 +84,8 @@ Resources:
 
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/storage/reports-bucket
 
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/auth/admin-token
+
 
         - PolicyName: DashboardS3Access
 
@@ -229,14 +231,16 @@ Resources:
             echo "Creating Flask application..."
 
             cat > /opt/cloudmart-dashboard/app.py <<'PYTHON'
+            import hmac
             import logging
             import os
-            from datetime import datetime
+            import secrets
+            from datetime import datetime, timedelta
 
             import boto3
             import pymysql
 
-            from flask import Flask, render_template
+            from flask import Flask, render_template, redirect, request, session, url_for
 
             app = Flask(__name__)
 
@@ -285,6 +289,27 @@ Resources:
                 "s3",
                 region_name=AWS_REGION
             )
+
+            ADMIN_TOKEN_PARAMETER = (
+                f"/cloudmart/{ENVIRONMENT}/auth/admin-token"
+            )
+
+            # Generate a separate Flask session signing secret on the EC2 instance.
+            # The admin token itself is never stored in the browser session cookie.
+            FLASK_SECRET_FILE = "/opt/cloudmart-dashboard/.flask_secret"
+
+            if not os.path.exists(FLASK_SECRET_FILE):
+                with open(FLASK_SECRET_FILE, "w") as secret_file:
+                    secret_file.write(secrets.token_hex(32))
+                os.chmod(FLASK_SECRET_FILE, 0o600)
+
+            with open(FLASK_SECRET_FILE, "r") as secret_file:
+                app.secret_key = secret_file.read().strip()
+
+            app.config["SESSION_COOKIE_HTTPONLY"] = True
+            app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+            app.config["SESSION_COOKIE_SECURE"] = False
+            app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 
 
             def get_parameter(name):
@@ -442,8 +467,54 @@ Resources:
                 }
 
 
+            def get_admin_token():
+
+                return get_parameter(ADMIN_TOKEN_PARAMETER)
+
+
+            @app.route("/login", methods=["GET", "POST"])
+            def login():
+
+                if request.method == "POST":
+
+                    submitted_token = request.form.get("admin_token", "")
+
+                    try:
+                        admin_token = get_admin_token()
+
+                        if hmac.compare_digest(
+                            submitted_token,
+                            admin_token
+                        ):
+                            session.permanent = True
+                            session["is_admin"] = True
+                            return redirect(url_for("dashboard"))
+
+                    except Exception:
+                        app.logger.exception(
+                            "Admin authentication error"
+                        )
+
+                    return render_template(
+                        "login.html",
+                        error="Invalid admin token"
+                    ), 401
+
+                return render_template("login.html")
+
+
+            @app.route("/logout")
+            def logout():
+
+                session.clear()
+                return redirect(url_for("login"))
+
+
             @app.route("/")
             def dashboard():
+
+                if not session.get("is_admin"):
+                    return redirect(url_for("login"))
 
                 try:
 
@@ -581,6 +652,10 @@ Resources:
                     Environment: ${Environment}
                 </div>
 
+                <p>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                </p>
+
                 <div class="card">
 
                     <h2>Latest Daily Report</h2>
@@ -710,6 +785,125 @@ Resources:
                         {% endfor %}
 
                     </table>
+
+                </div>
+
+            </body>
+
+            </html>
+            HTML
+
+            # ====================================================
+            # CREATE LOGIN TEMPLATE
+            # ====================================================
+
+            echo "Creating admin login template..."
+
+            cat > /opt/cloudmart-dashboard/templates/login.html <<'HTML'
+            <!DOCTYPE html>
+            <html lang="en">
+
+            <head>
+
+                <meta charset="UTF-8">
+
+                <meta name="viewport"
+                      content="width=device-width, initial-scale=1.0">
+
+                <title>CloudMart Admin Login</title>
+
+                <style>
+
+                    body {
+                        font-family: Arial, sans-serif;
+                        margin: 0;
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: #f5f6f8;
+                    }
+
+                    .card {
+                        width: 360px;
+                        background: white;
+                        padding: 30px;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+                    }
+
+                    h1 {
+                        margin-top: 0;
+                        margin-bottom: 8px;
+                    }
+
+                    .subtitle {
+                        color: #666;
+                        margin-bottom: 25px;
+                    }
+
+                    label {
+                        display: block;
+                        margin-bottom: 8px;
+                        font-weight: bold;
+                    }
+
+                    input {
+                        width: 100%;
+                        box-sizing: border-box;
+                        padding: 11px;
+                        margin-bottom: 15px;
+                        border: 1px solid #ccc;
+                        border-radius: 5px;
+                    }
+
+                    button {
+                        width: 100%;
+                        padding: 11px;
+                        border: 0;
+                        border-radius: 5px;
+                        background: #222;
+                        color: white;
+                        cursor: pointer;
+                    }
+
+                    .error {
+                        color: #b00020;
+                        margin-bottom: 15px;
+                    }
+
+                </style>
+
+            </head>
+
+            <body>
+
+                <div class="card">
+
+                    <h1>CloudMart Admin</h1>
+
+                    <div class="subtitle">
+                        Admin authentication is required to access the dashboard.
+                    </div>
+
+                    {% if error %}
+                    <div class="error">{{ error }}</div>
+                    {% endif %}
+
+                    <form method="post" action="{{ url_for('login') }}">
+
+                        <label for="admin_token">Admin Token</label>
+
+                        <input
+                            id="admin_token"
+                            name="admin_token"
+                            type="password"
+                            required
+                            autocomplete="current-password">
+
+                        <button type="submit">Login</button>
+
+                    </form>
 
                 </div>
 
