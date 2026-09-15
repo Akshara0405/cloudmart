@@ -35,7 +35,7 @@ Resources:
     Properties:
 
       RoleName:
-        !Sub CloudMart-${Environment}-Dashboard-EC2-Role
+        !Sub CloudMart-${Environment}-Dashboard-EC2-Role-V2
 
       AssumeRolePolicyDocument:
 
@@ -73,40 +73,89 @@ Resources:
 
                 Resource:
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/database/host
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/database/host'
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/database/port
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/database/port'
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/database/name
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/database/name'
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/database/username
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/database/username'
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/database/password
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/database/password'
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/storage/reports-bucket
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/storage/reports-bucket'
 
-                  - !Sub >-
-                      arn:${AWS::Partition}:ssm:${AWS::Region}:
-                      ${AWS::AccountId}:
-                      parameter/cloudmart/${Environment}/auth/admin-token
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':ssm:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':parameter/cloudmart/'
+                      - !Ref Environment
+                      - '/auth/admin-token'
 
 
         - PolicyName: DashboardS3Access
@@ -123,10 +172,17 @@ Resources:
                   - s3:ListBucket
 
                 Resource:
-                  - !Sub >-
-                      arn:${AWS::Partition}:s3:::
-                      cloudmart-${Environment}-reports-
-                      ${AWS::AccountId}-${AWS::Region}
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':s3:::'
+                      - 'cloudmart-'
+                      - !Ref Environment
+                      - '-reports-'
+                      - !Ref AWS::AccountId
+                      - '-'
+                      - !Ref AWS::Region
 
               - Effect: Allow
 
@@ -134,10 +190,18 @@ Resources:
                   - s3:GetObject
 
                 Resource:
-                  - !Sub >-
-                      arn:${AWS::Partition}:s3:::
-                      cloudmart-${Environment}-reports-
-                      ${AWS::AccountId}-${AWS::Region}/*
+                  - !Join
+                    - ''
+                    - - 'arn:'
+                      - !Ref AWS::Partition
+                      - ':s3:::'
+                      - 'cloudmart-'
+                      - !Ref Environment
+                      - '-reports-'
+                      - !Ref AWS::AccountId
+                      - '-'
+                      - !Ref AWS::Region
+                      - '/*'
 
 
   # ============================================================
@@ -150,7 +214,7 @@ Resources:
     Properties:
 
       InstanceProfileName:
-        !Sub CloudMart-${Environment}-Dashboard-InstanceProfile
+        !Sub CloudMart-${Environment}-Dashboard-InstanceProfile-V2
 
       Roles:
         - !Ref DashboardInstanceRole
