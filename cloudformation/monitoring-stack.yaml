@@ -322,6 +322,74 @@ Resources:
 
 
   # ============================================================
+  # CLOUDWATCH ALARM SNS TOPIC
+  # ============================================================
+
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+
+    Properties:
+
+      TopicName:
+        !Sub CloudMart-${Environment}-AlarmNotifications
+
+      DisplayName:
+        !Sub CloudMart ${Environment} Alarm Notifications
+
+
+  # ============================================================
+  # CLOUDWATCH ALARM EMAIL SUBSCRIPTION
+  # ============================================================
+
+  AlarmNotificationEmailSubscription:
+    Type: AWS::SNS::Subscription
+
+    Properties:
+
+      TopicArn:
+        !Ref AlarmNotificationTopic
+
+      Protocol:
+        email
+
+      Endpoint:
+        !Ref AlertEmail
+
+
+  # ============================================================
+  # CLOUDWATCH ALARM SNS TOPIC POLICY
+  # ============================================================
+
+  AlarmNotificationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+
+    Properties:
+
+      Topics:
+        - !Ref AlarmNotificationTopic
+
+      PolicyDocument:
+
+        Version: '2012-10-17'
+
+        Statement:
+
+          - Sid: AllowCloudWatchPublish
+
+            Effect: Allow
+
+            Principal:
+              Service:
+                cloudwatch.amazonaws.com
+
+            Action:
+              - sns:Publish
+
+            Resource:
+              !Ref AlarmNotificationTopic
+
+
+  # ============================================================
   # CLOUDWATCH OPERATIONS DASHBOARD
   #
   # Dashboard name:
@@ -731,7 +799,7 @@ Resources:
           ReturnData: true
 
       AlarmActions:
-        - !Ref OrderConfirmationTopic
+        - !Ref AlarmNotificationTopic
 
 
   # ============================================================
@@ -776,7 +844,7 @@ Resources:
       TreatMissingData: notBreaching
 
       AlarmActions:
-        - !Ref OrderConfirmationTopic
+        - !Ref AlarmNotificationTopic
 
 
   # ============================================================
@@ -821,7 +889,7 @@ Resources:
       TreatMissingData: notBreaching
 
       AlarmActions:
-        - !Ref OrderConfirmationTopic
+        - !Ref AlarmNotificationTopic
 
 
   # ============================================================
@@ -902,7 +970,7 @@ Resources:
           ReturnData: true
 
       AlarmActions:
-        - !Ref OrderConfirmationTopic
+        - !Ref AlarmNotificationTopic
 
 
 # ============================================================
@@ -1008,6 +1076,23 @@ Outputs:
 
     Value:
       !Sub cloudmart-operations
+
+
+  # ============================================================
+  # CLOUDWATCH ALARM SNS TOPIC ARN
+  # ============================================================
+
+  AlarmNotificationTopicArn:
+
+    Description:
+      SNS topic ARN for CloudWatch alarm notifications
+
+    Value:
+      !Ref AlarmNotificationTopic
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-AlarmNotificationTopicArn
 
 
   # ============================================================
