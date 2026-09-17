@@ -29,7 +29,7 @@ s3 = boto3.client("s3")
 # ENVIRONMENT
 # ============================================================
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+ENVIRONMENT = os.environ["ENVIRONMENT"]
 
 DB_HOST_PARAMETER = (
     f"/cloudmart/{ENVIRONMENT}/database/host"

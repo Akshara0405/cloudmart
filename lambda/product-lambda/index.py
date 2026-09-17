@@ -14,7 +14,7 @@ events = boto3.client("events")
 cloudwatch = boto3.client("cloudwatch")
 
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+ENVIRONMENT = os.environ["ENVIRONMENT"]
 
 DB_HOST_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/host"
 DB_PORT_PARAMETER = f"/cloudmart/{ENVIRONMENT}/database/port"

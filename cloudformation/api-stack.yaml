@@ -9,7 +9,7 @@ Description: >
 Parameters:
   Environment:
     Type: String
-    Default: dev
+
     AllowedValues:
       - dev
       - prod
@@ -128,7 +128,7 @@ Resources:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
 
       Code:
-        S3Bucket: cloudmart-dev-reports-062585739401-ap-south-1
+        S3Bucket: !Sub cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
         S3Key: !Ref ProductLambdaS3Key
 
   # ============================================================
@@ -170,7 +170,7 @@ Resources:
               Fn::Sub: CloudMart-${Environment}-PrivateSubnet2Id
 
       Code:
-        S3Bucket: cloudmart-dev-reports-062585739401-ap-south-1
+        S3Bucket: !Sub cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
         S3Key: !Ref OrderProcessorLambdaS3Key
 
   # ============================================================

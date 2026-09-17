@@ -6,7 +6,7 @@ Parameters:
 
   Environment:
     Type: String
-    Default: dev
+
     AllowedValues:
       - dev
       - prod
@@ -164,7 +164,7 @@ Resources:
       Code:
 
         S3Bucket:
-          cloudmart-dev-reports-062585739401-ap-south-1
+          !Sub cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
 
         S3Key:
           !Ref AuthorizerLambdaS3Key

@@ -8,7 +8,7 @@ Parameters:
 
   Environment:
     Type: String
-    Default: dev
+
     AllowedValues:
       - dev
       - prod
@@ -242,7 +242,7 @@ Resources:
 
             logging.basicConfig(level=logging.INFO)
 
-            ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+            ENVIRONMENT = os.environ["ENVIRONMENT"]
 
             AWS_REGION = os.environ.get(
                 "AWS_REGION",

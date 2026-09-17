@@ -51,8 +51,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -66,17 +65,17 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/network-stack.yaml \
-            --stack-name cloudmart-dev-network \
-            --parameter-overrides Environment=dev \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-network \
+            --parameter-overrides Environment=${ENVIRONMENT} \
+            --region ${AWS_REGION} \
             --no-fail-on-empty-changeset
 
       - name: Check Network Stack Status
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-network \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-network \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -84,8 +83,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-network \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-network \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -108,8 +107,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -123,10 +121,10 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/data-stack.yaml \
-            --stack-name cloudmart-dev-data-newversion \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-data-newversion \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
               MasterUsername="${{ secrets.DB_USERNAME }}" \
               MasterUserPassword="${{ secrets.DB_PASSWORD }}" \
             --no-fail-on-empty-changeset
@@ -135,8 +133,8 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-data-newversion \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-data-newversion \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -144,8 +142,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-data-newversion \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-data-newversion \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -168,8 +166,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -183,10 +180,10 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/iam-stack.yaml \
-            --stack-name cloudmart-dev-iam \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-iam \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
@@ -194,8 +191,8 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-iam \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-iam \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -203,8 +200,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-iam \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-iam \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -212,8 +209,8 @@ jobs:
         if: success()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-iam \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-iam \
+            --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
 
@@ -236,8 +233,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -253,7 +249,7 @@ jobs:
         run: |
           aws s3 cp \
             lambda-authorizer.zip \
-            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/lambda-authorizer-${GITHUB_SHA}.zip
+            s3://cloudmart-${ENVIRONMENT}-reports-$(aws sts get-caller-identity --query Account --output text)-${AWS_REGION}/lambda/lambda-authorizer-${GITHUB_SHA}.zip
 
       - name: Validate Auth CloudFormation template
         run: |
@@ -264,10 +260,10 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/auth-stack.yaml \
-            --stack-name cloudmart-dev-auth \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-auth \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
               AuthToken="${{ secrets.CLOUDMART_AUTH_TOKEN }}" \
               AdminToken="${{ secrets.CLOUDMART_ADMIN_TOKEN }}" \
               AuthorizerLambdaS3Key=lambda/lambda-authorizer-${GITHUB_SHA}.zip \
@@ -277,8 +273,8 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-auth \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-auth \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -286,8 +282,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-auth \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-auth \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -295,8 +291,8 @@ jobs:
         if: success()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-auth \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-auth \
+            --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
 
@@ -319,8 +315,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -358,11 +353,11 @@ jobs:
         run: |
           aws s3 cp \
             product-lambda.zip \
-            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/product-lambda-${GITHUB_SHA}.zip
+            s3://cloudmart-${ENVIRONMENT}-reports-$(aws sts get-caller-identity --query Account --output text)-${AWS_REGION}/lambda/product-lambda-${GITHUB_SHA}.zip
 
           aws s3 cp \
             order-processor.zip \
-            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/order-processor-${GITHUB_SHA}.zip
+            s3://cloudmart-${ENVIRONMENT}-reports-$(aws sts get-caller-identity --query Account --output text)-${AWS_REGION}/lambda/order-processor-${GITHUB_SHA}.zip
 
       - name: Validate API CloudFormation template
         run: |
@@ -373,10 +368,10 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/api-stack.yaml \
-            --stack-name cloudmart-dev-api \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-api \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
               ProductLambdaS3Key=lambda/product-lambda-${GITHUB_SHA}.zip \
               OrderProcessorLambdaS3Key=lambda/order-processor-${GITHUB_SHA}.zip \
             --no-fail-on-empty-changeset
@@ -385,8 +380,8 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-api \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-api \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -394,8 +389,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-api \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-api \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -403,8 +398,8 @@ jobs:
         if: success()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-api \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-api \
+            --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
 
@@ -427,8 +422,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -442,18 +436,18 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/rds-test-stack.yaml \
-            --stack-name cloudmart-dev-rds-test \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-rds-test \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
       - name: Show RDS Test Lambda
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-rds-test \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-rds-test \
+            --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
 
@@ -476,8 +470,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -485,7 +478,7 @@ jobs:
       - name: Invoke Product Lambda
         run: |
           aws lambda invoke \
-            --function-name CloudMart-dev-ProductService \
+            --function-name CloudMart-${ENVIRONMENT}-ProductService \
             --payload '{}' \
             --cli-binary-format raw-in-base64-out \
             response.json
@@ -515,17 +508,17 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
       - name: Deploy Monitoring Stack
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/monitoring-stack.yaml \
-            --stack-name cloudmart-dev-monitoring \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-monitoring \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
               AlertEmail="${{ secrets.ALERT_EMAIL }}" \
             --capabilities CAPABILITY_NAMED_IAM
 
@@ -548,8 +541,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -573,7 +565,7 @@ jobs:
         run: |
           aws s3 cp \
             report-lambda.zip \
-            s3://cloudmart-dev-reports-062585739401-ap-south-1/lambda/report-lambda-${GITHUB_SHA}.zip
+            s3://cloudmart-${ENVIRONMENT}-reports-$(aws sts get-caller-identity --query Account --output text)-${AWS_REGION}/lambda/report-lambda-${GITHUB_SHA}.zip
 
       - name: Validate Report CloudFormation template
         run: |
@@ -584,10 +576,10 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/report-stack.yaml \
-            --stack-name cloudmart-dev-report \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-report \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
               ReportLambdaS3Key=lambda/report-lambda-${GITHUB_SHA}.zip \
             --no-fail-on-empty-changeset
 
@@ -595,8 +587,8 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-report \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-report \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -604,8 +596,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-report \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-report \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:15].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -613,8 +605,8 @@ jobs:
         if: success()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-report \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-report \
+            --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
 
@@ -641,8 +633,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ap-south-1
-
+          aws-region: ${{ env.AWS_REGION }}
       - name: Validate dashboard stack
         run: |
           aws cloudformation validate-template \
@@ -651,11 +642,11 @@ jobs:
       - name: Deploy dashboard stack
         run: |
           aws cloudformation deploy \
-            --stack-name cloudmart-dev-dashboard \
+            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
             --template-file cloudformation/dashboard-stack.yaml \
-            --region ap-south-1 \
+            --region ${AWS_REGION} \
             --parameter-overrides \
-              Environment=dev \
+              Environment=${ENVIRONMENT} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
@@ -663,8 +654,8 @@ jobs:
         if: always()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-dashboard \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
+            --region ${AWS_REGION} \
             --query "Stacks[0].StackStatus" \
             --output text
 
@@ -672,8 +663,8 @@ jobs:
         if: failure()
         run: |
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-dev-dashboard \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
+            --region ${AWS_REGION} \
             --query "StackEvents[0:20].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
 
@@ -681,7 +672,7 @@ jobs:
         if: success()
         run: |
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-dev-dashboard \
-            --region ap-south-1 \
+            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
+            --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
