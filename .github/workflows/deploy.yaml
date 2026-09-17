@@ -7,6 +7,10 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  ENVIRONMENT: dev
+  AWS_REGION: ap-south-1
+
 jobs:
 
   # ============================================================
@@ -52,6 +56,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -59,7 +64,8 @@ jobs:
       - name: Validate Network CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/network-stack.yaml
+            --template-body file://cloudformation/network-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy Network Stack
         run: |
@@ -108,6 +114,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -115,7 +122,8 @@ jobs:
       - name: Validate Data CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/data-stack.yaml
+            --template-body file://cloudformation/data-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy Data Stack
         run: |
@@ -167,6 +175,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -174,7 +183,8 @@ jobs:
       - name: Validate IAM CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/iam-stack.yaml
+            --template-body file://cloudformation/iam-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy IAM Stack
         run: |
@@ -234,6 +244,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -254,7 +265,8 @@ jobs:
       - name: Validate Auth CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/auth-stack.yaml
+            --template-body file://cloudformation/auth-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy Auth Stack
         run: |
@@ -316,6 +328,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -362,7 +375,8 @@ jobs:
       - name: Validate API CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/api-stack.yaml
+            --template-body file://cloudformation/api-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy API Stack
         run: |
@@ -423,6 +437,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -430,7 +445,8 @@ jobs:
       - name: Validate RDS Test CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/rds-test-stack.yaml
+            --template-body file://cloudformation/rds-test-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy RDS Test Stack
         run: |
@@ -471,6 +487,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -542,6 +559,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
@@ -570,7 +588,8 @@ jobs:
       - name: Validate Report CloudFormation template
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/report-stack.yaml
+            --template-body file://cloudformation/report-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy Report Stack
         run: |
@@ -634,10 +653,12 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Validate dashboard stack
         run: |
           aws cloudformation validate-template \
-            --template-body file://cloudformation/dashboard-stack.yaml
+            --template-body file://cloudformation/dashboard-stack.yaml \
+            --region ${AWS_REGION}
 
       - name: Deploy dashboard stack
         run: |
