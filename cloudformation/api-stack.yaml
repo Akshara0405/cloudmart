@@ -76,7 +76,7 @@ Resources:
     Properties:
       Name: !Sub CloudMart-${Environment}-Authorizer
       RestApiId: !Ref CloudMartApi
-      Type: TOKEN
+      Type: REQUEST
       IdentitySource: method.request.header.Authorization
 
       AuthorizerUri:
@@ -86,8 +86,10 @@ Resources:
               Fn::ImportValue:
                 Fn::Sub: CloudMart-${Environment}-AuthorizerFunctionArn
 
-      # Keep this at 1 second while testing role-based access.
-      AuthorizerResultTtlInSeconds: 1
+      # Do not cache the authorizer result. The same customer token may
+      # belong to multiple customers, so caching only by Authorization
+      # could reuse one customer's policy for another customer.
+      AuthorizerResultTtlInSeconds: 0
 
   # ============================================================
   # PRODUCT LAMBDA

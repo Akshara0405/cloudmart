@@ -12,19 +12,6 @@ ssm = boto3.client("ssm")
 
 
 # ============================================================
-# AUTH PARAMETERS
-# ============================================================
-
-CUSTOMER_TOKEN_PARAMETER = os.environ[
-    "CUSTOMER_TOKEN_PARAMETER"
-]
-
-ADMIN_TOKEN_PARAMETER = os.environ[
-    "ADMIN_TOKEN_PARAMETER"
-]
-
-
-# ============================================================
 # DATABASE PARAMETERS
 # ============================================================
 
@@ -197,7 +184,7 @@ def is_customer_allowed(method, path):
 # CUSTOMER TOKEN LOOKUP
 # ============================================================
 
-def get_customer_from_token(provided_token):
+def get_customer_from_token(customer_id, provided_token):
 
     connection = None
 
@@ -210,11 +197,54 @@ def get_customer_from_token(provided_token):
             cursor.execute(
                 """
                 SELECT
-                    customer_id,
+                    t.customer_id,
+                    t.role,
+                    t.is_active
+                FROM tokens t
+                INNER JOIN customers c
+                    ON c.customer_id = t.customer_id
+                WHERE t.customer_id = %s
+                AND t.token_hash = %s
+                AND t.role = 'customer'
+                AND t.is_active = TRUE
+                AND c.is_deleted = FALSE
+                LIMIT 1
+                """,
+                (customer_id, provided_token)
+            )
+
+            token_record = cursor.fetchone()
+
+        return token_record
+
+    finally:
+
+        if connection:
+            connection.close()
+
+
+# ============================================================
+# ADMIN TOKEN LOOKUP
+# ============================================================
+
+def get_admin_from_token(provided_token):
+
+    connection = None
+
+    try:
+
+        connection = get_db_connection()
+
+        with connection.cursor() as cursor:
+
+            cursor.execute(
+                """
+                SELECT
                     role,
                     is_active
                 FROM tokens
                 WHERE token_hash = %s
+                AND role = 'admin'
                 AND is_active = TRUE
                 LIMIT 1
                 """,
@@ -238,12 +268,24 @@ def get_customer_from_token(provided_token):
 def lambda_handler(event, context):
 
     # --------------------------------------------------------
-    # GET AUTHORIZATION HEADER
+    # GET REQUEST HEADERS
+    # REQUEST authorizers receive the full request headers.
+    # Customer requests must provide Customer-Id.
+    # Admin requests only need Authorization.
     # --------------------------------------------------------
 
-    authorization_header = event.get(
-        "authorizationToken",
-        ""
+    headers = event.get("headers") or {}
+
+    normalized_headers = {
+        str(key).lower(): value
+        for key, value in headers.items()
+    }
+
+    # Support both REQUEST authorizer events and the previous
+    # TOKEN authorizer event format during testing.
+    authorization_header = normalized_headers.get(
+        "authorization",
+        event.get("authorizationToken", "")
     )
 
     if not authorization_header.startswith("Bearer "):
@@ -256,13 +298,11 @@ def lambda_handler(event, context):
 
         raise Exception("Unauthorized")
 
-    # --------------------------------------------------------
-    # GET ADMIN TOKEN FROM SSM
-    # --------------------------------------------------------
-
-    admin_token = get_parameter(
-        ADMIN_TOKEN_PARAMETER
-    )
+    customer_id = (
+        normalized_headers.get("customer-id")
+        or normalized_headers.get("x-customer-id")
+        or ""
+    ).strip()
 
     # --------------------------------------------------------
     # GET METHOD ARN
@@ -288,7 +328,11 @@ def lambda_handler(event, context):
     # ADMIN TOKEN
     # ========================================================
 
-    if provided_token == admin_token:
+    admin_record = get_admin_from_token(
+        provided_token
+    )
+
+    if admin_record:
 
         resource = build_stage_resource(
             method_arn
@@ -307,7 +351,11 @@ def lambda_handler(event, context):
     # CUSTOMER TOKEN
     # ========================================================
 
+    if not customer_id:
+        raise Exception("Unauthorized")
+
     customer_record = get_customer_from_token(
+        customer_id,
         provided_token
     )
 
