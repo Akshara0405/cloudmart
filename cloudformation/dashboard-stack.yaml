@@ -481,4 +481,3 @@ Outputs:
 
     Value:
       !GetAtt DashboardInstanceRole.Arn
-    
