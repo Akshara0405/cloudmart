@@ -1,5 +1,6 @@
 import os
 import secrets
+from datetime import datetime, timezone
 
 import boto3
 import pymysql
@@ -156,15 +157,14 @@ def get_products():
             connection.close()
 
 
-def get_recent_orders():
+def get_recent_orders(status_filter=None):
     connection = None
 
     try:
         connection = get_db_connection()
 
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
+            query = """
                 SELECT
                     o.id AS order_id,
                     o.customer_id,
@@ -175,16 +175,28 @@ def get_recent_orders():
                     oi.quantity,
                     oi.price
                 FROM orders o
-                INNER JOIN order_items oi
+                LEFT JOIN order_items oi
                     ON o.id = oi.order_id
-                INNER JOIN products p
+                    AND oi.is_deleted = FALSE
+                LEFT JOIN products p
                     ON oi.product_id = p.id
                 WHERE o.is_deleted = FALSE
-                  AND oi.is_deleted = FALSE
-                ORDER BY o.created_at DESC, oi.id DESC
-                LIMIT 20
+            """
+
+            parameters = []
+
+            if status_filter:
+                query += """
+                    AND LOWER(TRIM(o.status)) = %s
                 """
-            )
+                parameters.append(status_filter)
+
+            query += """
+                ORDER BY o.created_at DESC, oi.id DESC
+                LIMIT 50
+            """
+
+            cursor.execute(query, parameters)
 
             return cursor.fetchall()
 
@@ -349,8 +361,19 @@ def dashboard():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
+    status_filter = request.args.get("status", "").strip().lower()
+
+    allowed_statuses = {
+        "confirmed",
+        "failed",
+        "pending"
+    }
+
+    if status_filter not in allowed_statuses:
+        status_filter = None
+
     products = get_products()
-    recent_orders = get_recent_orders()
+    recent_orders = get_recent_orders(status_filter)
     order_counts = get_order_counts()
     latest_report = get_latest_report()
 
@@ -361,7 +384,9 @@ def dashboard():
         products=products,
         recent_orders=recent_orders,
         order_counts=order_counts,
-        latest_report=latest_report
+        latest_report=latest_report,
+        selected_status=status_filter,
+        generated_at=datetime.now(timezone.utc)
     )
 
 

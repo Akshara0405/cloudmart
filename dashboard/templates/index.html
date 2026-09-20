@@ -87,8 +87,7 @@
 
         .widgets {
             display: grid;
-            grid-template-columns:
-                repeat(3, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             margin-bottom: 25px;
         }
@@ -101,6 +100,22 @@
                 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
+        .clickable-widget {
+            display: block;
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            transition:
+                transform 0.2s ease,
+                box-shadow 0.2s ease;
+        }
+
+        .clickable-widget:hover {
+            transform: translateY(-3px);
+            box-shadow:
+                0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+
         .widget-title {
             color: #666;
             margin-bottom: 10px;
@@ -111,6 +126,12 @@
             font-weight: bold;
         }
 
+        .widget-action {
+            margin-top: 8px;
+            color: #777;
+            font-size: 13px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -119,8 +140,7 @@
         th,
         td {
             padding: 10px;
-            border-bottom:
-                1px solid #ddd;
+            border-bottom: 1px solid #ddd;
             text-align: left;
         }
 
@@ -146,10 +166,82 @@
             margin-bottom: 20px;
         }
 
+        .orders-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .orders-header h2 {
+            margin-bottom: 5px;
+        }
+
+        .orders-description {
+            color: #666;
+            margin: 0;
+        }
+
+        .show-all-link {
+            display: inline-block;
+            padding: 8px 12px;
+            background: #222;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            white-space: nowrap;
+        }
+
+        .show-all-link:hover {
+            opacity: 0.9;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .status-confirmed {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status-failed {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .status-pending {
+            background: #fff8e1;
+            color: #ef6c00;
+        }
+
+        .empty-state {
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            background: #f8f8f8;
+            border-radius: 5px;
+        }
+
         @media (max-width: 900px) {
 
             .widgets {
                 grid-template-columns: 1fr;
+            }
+
+            .orders-header {
+                flex-direction: column;
+                align-items: flex-start;
             }
 
             table {
@@ -169,7 +261,12 @@
 
 <body>
 
+
 {% if not authenticated %}
+
+    <!-- ======================================================
+         LOGIN
+         ====================================================== -->
 
     <div class="card login-card">
 
@@ -188,19 +285,20 @@
 
         {% endif %}
 
+
         <form
             method="POST"
             action="{{ url_for('login') }}"
         >
 
-            <label for="admin_token">
+            <label for="token">
                 Admin Token
             </label>
 
             <input
                 type="password"
-                id="admin_token"
-                name="admin_token"
+                id="token"
+                name="token"
                 placeholder="Enter admin token"
                 required
             >
@@ -213,7 +311,13 @@
 
     </div>
 
+
 {% else %}
+
+
+    <!-- ======================================================
+         LOGOUT
+         ====================================================== -->
 
     <a
         class="logout-link"
@@ -222,16 +326,23 @@
         Logout
     </a>
 
+
+    <!-- ======================================================
+         DASHBOARD HEADER
+         ====================================================== -->
+
     <h1>
         CloudMart Operations Dashboard
     </h1>
 
     <div class="subtitle">
-        Environment: {{ config.get("ENVIRONMENT", "dev") }}
+        Environment:
+        {{ config.get("ENVIRONMENT", "dev") }}
     </div>
 
     <div class="role">
-        Role: {{ session.get("admin_role", "admin") }}
+        Role:
+        {{ session.get("role", "admin") }}
     </div>
 
 
@@ -241,43 +352,84 @@
 
     <div class="widgets">
 
-        <div class="widget">
 
-            <div class="widget-title">
-                Total Orders
+        <!-- TOTAL ORDERS -->
+
+        <a
+            href="{{ url_for('dashboard') }}#orders"
+            class="clickable-widget"
+        >
+
+            <div class="widget">
+
+                <div class="widget-title">
+                    Total Orders
+                </div>
+
+                <div class="widget-value">
+                    {{ order_counts.total_orders }}
+                </div>
+
+                <div class="widget-action">
+                    Click to view all orders
+                </div>
+
             </div>
 
-            <div class="widget-value">
-                {{ order_counts.total_orders }}
+        </a>
+
+
+        <!-- CONFIRMED ORDERS -->
+
+        <a
+            href="{{ url_for('dashboard', status='confirmed') }}#orders"
+            class="clickable-widget"
+        >
+
+            <div class="widget">
+
+                <div class="widget-title">
+                    Confirmed Orders
+                </div>
+
+                <div class="widget-value">
+                    {{ order_counts.confirmed_orders }}
+                </div>
+
+                <div class="widget-action">
+                    Click to view confirmed orders
+                </div>
+
             </div>
 
-        </div>
+        </a>
 
 
-        <div class="widget">
+        <!-- FAILED ORDERS -->
 
-            <div class="widget-title">
-                Confirmed Orders
+        <a
+            href="{{ url_for('dashboard', status='failed') }}#orders"
+            class="clickable-widget"
+        >
+
+            <div class="widget">
+
+                <div class="widget-title">
+                    Failed Orders
+                </div>
+
+                <div class="widget-value">
+                    {{ order_counts.failed_orders }}
+                </div>
+
+                <div class="widget-action">
+                    Click to view failed orders
+                </div>
+
             </div>
 
-            <div class="widget-value">
-                {{ order_counts.confirmed_orders }}
-            </div>
+        </a>
 
-        </div>
-
-
-        <div class="widget">
-
-            <div class="widget-title">
-                Failed Orders
-            </div>
-
-            <div class="widget-value">
-                {{ order_counts.failed_orders }}
-            </div>
-
-        </div>
 
     </div>
 
@@ -292,10 +444,11 @@
             Latest Daily Report
         </h2>
 
+
         {% if latest_report %}
 
             <p>
-                {{ latest_report.key }}
+                {{ latest_report.name }}
             </p>
 
             <p>
@@ -332,128 +485,323 @@
             Current Product Inventory
         </h2>
 
-        <table>
 
-            <tr>
+        <div class="table-container">
 
-                <th>ID</th>
-                <th>Product</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Stock</th>
+            <table>
 
-            </tr>
+                <thead>
 
-            {% for product in products %}
+                    <tr>
 
-            <tr>
+                        <th>ID</th>
 
-                <td>
-                    {{ product.id }}
-                </td>
+                        <th>Product</th>
 
-                <td>
-                    {{ product.name }}
-                </td>
+                        <th>Category</th>
 
-                <td>
-                    {{ product.category }}
-                </td>
+                        <th>Price</th>
 
-                <td>
-                    ₹{{ product.price }}
-                </td>
+                        <th>Stock</th>
 
-                <td
-                    class="
-                    {% if product.stock_count <= 5 %}
-                        low-stock
-                    {% endif %}
-                    "
-                >
-                    {{ product.stock_count }}
-                </td>
+                    </tr>
 
-            </tr>
+                </thead>
 
-            {% endfor %}
 
-        </table>
+                <tbody>
+
+                    {% for product in products %}
+
+                    <tr>
+
+                        <td>
+                            {{ product.id }}
+                        </td>
+
+                        <td>
+                            {{ product.name }}
+                        </td>
+
+                        <td>
+                            {{ product.category }}
+                        </td>
+
+                        <td>
+                            ₹{{ product.price }}
+                        </td>
+
+                        <td
+                            class="
+                            {% if product.stock_count <= 5 %}
+                                low-stock
+                            {% endif %}
+                            "
+                        >
+                            {{ product.stock_count }}
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
 
     </div>
 
 
     <!-- ======================================================
-         RECENT ORDERS
+         RECENT / FILTERED ORDERS
          ====================================================== -->
 
-    <div class="card">
+    <div
+        class="card"
+        id="orders"
+    >
 
-        <h2>
-            Recent Orders
-        </h2>
+        <div class="orders-header">
 
-        <table>
+            <div>
 
-            <tr>
+                {% if selected_status == "confirmed" %}
 
-                <th>Order ID</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th>Product</th>
-                <th>Quantity</th>
-                <th>Price</th>
-                <th>Created</th>
+                    <h2>
+                        Confirmed Orders
+                    </h2>
 
-            </tr>
+                    <p class="orders-description">
+                        Showing confirmed orders only.
+                    </p>
 
-            {% for order in orders %}
+                {% elif selected_status == "failed" %}
 
-            <tr>
+                    <h2>
+                        Failed Orders
+                    </h2>
 
-                <td>
-                    {{ order.order_id }}
-                </td>
+                    <p class="orders-description">
+                        Showing failed orders only.
+                    </p>
 
-                <td>
-                    {{ order.customer_id }}
-                </td>
+                {% elif selected_status == "pending" %}
 
-                <td>
-                    {{ order.status }}
-                </td>
+                    <h2>
+                        Pending Orders
+                    </h2>
 
-                <td>
-                    {{ order.product_name }}
-                </td>
+                    <p class="orders-description">
+                        Showing pending orders only.
+                    </p>
 
-                <td>
-                    {{ order.quantity }}
-                </td>
+                {% else %}
 
-                <td>
-                    ₹{{ order.price }}
-                </td>
+                    <h2>
+                        Recent Orders
+                    </h2>
 
-                <td>
-                    {{ order.created_at }}
-                </td>
+                    <p class="orders-description">
+                        Latest CloudMart orders.
+                    </p>
 
-            </tr>
+                {% endif %}
 
-            {% endfor %}
+            </div>
 
-        </table>
+
+            {% if selected_status %}
+
+                <a
+                    href="{{ url_for('dashboard') }}#orders"
+                    class="show-all-link"
+                >
+                    Show All Orders
+                </a>
+
+            {% endif %}
+
+        </div>
+
+
+        {% if recent_orders %}
+
+            <div class="table-container">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>Order ID</th>
+
+                            <th>Customer</th>
+
+                            <th>Status</th>
+
+                            <th>Product</th>
+
+                            <th>Quantity</th>
+
+                            <th>Price</th>
+
+                            <th>Created</th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for order in recent_orders %}
+
+                        <tr>
+
+                            <td>
+                                {{ order.order_id }}
+                            </td>
+
+                            <td>
+                                {{ order.customer_id }}
+                            </td>
+
+                            <td>
+
+                                {% if order.status %}
+
+                                    <span
+                                        class="
+                                        status-badge
+                                        status-{{ order.status|lower|trim }}
+                                        "
+                                    >
+                                        {{ order.status }}
+                                    </span>
+
+                                {% else %}
+
+                                    -
+
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+
+                                {% if order.product_name %}
+
+                                    {{ order.product_name }}
+
+                                {% else %}
+
+                                    -
+
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+
+                                {% if order.quantity is not none %}
+
+                                    {{ order.quantity }}
+
+                                {% else %}
+
+                                    -
+
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+
+                                {% if order.price is not none %}
+
+                                    ₹{{ "%.2f"|format(order.price) }}
+
+                                {% else %}
+
+                                    -
+
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+
+                                {% if order.created_at %}
+
+                                    {{ order.created_at }}
+
+                                {% else %}
+
+                                    -
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+
+        {% else %}
+
+
+            <div class="empty-state">
+
+                {% if selected_status == "confirmed" %}
+
+                    No confirmed orders found.
+
+                {% elif selected_status == "failed" %}
+
+                    No failed orders found.
+
+                {% elif selected_status == "pending" %}
+
+                    No pending orders found.
+
+                {% else %}
+
+                    No orders found.
+
+                {% endif %}
+
+            </div>
+
+
+        {% endif %}
 
     </div>
 
+
+    <!-- ======================================================
+         GENERATED TIME
+         ====================================================== -->
 
     <div class="subtitle">
+
         Generated:
         {{ generated_at }}
+
     </div>
 
+
 {% endif %}
+
 
 </body>
 
