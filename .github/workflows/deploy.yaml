@@ -662,7 +662,7 @@ jobs:
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
-          aws configure get region
+          echo "AWS Region: ${AWS_REGION}"
 
 
       - name: Get Reports Bucket
@@ -753,4 +753,3 @@ jobs:
             --region "${AWS_REGION}" \
             --query "Stacks[0].Outputs"
 
-            
