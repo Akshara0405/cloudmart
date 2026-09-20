@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>CloudMart Operations Dashboard</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: #f5f6f8;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #f0f1f3;
+        }
+
+        .low-stock {
+            font-weight: bold;
+        }
+
+        .report-link {
+            display: inline-block;
+            padding: 10px 15px;
+            background: #222;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>CloudMart Operations Dashboard</h1>
+
+    <div class="subtitle">
+        Environment: {{ environment }}
+    </div>
+
+    <div class="card">
+
+        <h2>Latest Daily Report</h2>
+
+        {% if latest_report %}
+
+            <p>
+                {{ latest_report.key }}
+            </p>
+
+            <p>
+                Last modified:
+                {{ latest_report.last_modified }}
+            </p>
+
+            <a
+                class="report-link"
+                href="{{ latest_report.url }}"
+                target="_blank">
+                Open Latest Report
+            </a>
+
+        {% else %}
+
+            <p>No report available.</p>
+
+        {% endif %}
+
+    </div>
+
+    <div class="card">
+
+        <h2>Current Product Inventory</h2>
+
+        <table>
+
+            <tr>
+                <th>ID</th>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+            </tr>
+
+            {% for product in products %}
+
+            <tr>
+
+                <td>
+                    {{ product.id }}
+                </td>
+
+                <td>
+                    {{ product.name }}
+                </td>
+
+                <td>
+                    {{ product.category }}
+                </td>
+
+                <td>
+                    ₹{{ product.price }}
+                </td>
+
+                <td class="{% if product.stock_count <= 5 %}low-stock{% endif %}">
+                    {{ product.stock_count }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+    <div class="card">
+
+        <h2>Recent Orders</h2>
+
+        <table>
+
+            <tr>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Created</th>
+            </tr>
+
+            {% for order in orders %}
+
+            <tr>
+
+                <td>
+                    {{ order.order_id }}
+                </td>
+
+                <td>
+                    {{ order.customer_id }}
+                </td>
+
+                <td>
+                    {{ order.status }}
+                </td>
+
+                <td>
+                    {{ order.product_name }}
+                </td>
+
+                <td>
+                    {{ order.quantity }}
+                </td>
+
+                <td>
+                    ₹{{ order.price }}
+                </td>
+
+                <td>
+                    {{ order.created_at }}
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+</body>
+
+</html>

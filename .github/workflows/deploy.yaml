@@ -634,6 +634,10 @@ jobs:
   # EC2 DASHBOARD
   # ============================================================
 
+    # ============================================================
+  # EC2 DASHBOARD
+  # ============================================================
+
   deploy-dashboard:
 
     name: Deploy EC2 Dashboard
@@ -648,52 +652,141 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
+
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+
+      - name: Verify AWS access
+        run: |
+          aws sts get-caller-identity
+
+
+      # ==========================================================
+      # GET EXISTING CLOUDMART REPORTS BUCKET
+      # ==========================================================
+
+      - name: Get Reports Bucket
+        run: |
+
+          REPORTS_BUCKET=$(aws ssm get-parameter \
+            --name "/cloudmart/${ENVIRONMENT}/storage/reports-bucket" \
+            --with-decryption \
+            --query "Parameter.Value" \
+            --output text \
+            --region "${AWS_REGION}")
+
+          echo "REPORTS_BUCKET=${REPORTS_BUCKET}" >> "${GITHUB_ENV}"
+
+          echo "Reports bucket: ${REPORTS_BUCKET}"
+
+
+      # ==========================================================
+      # UPLOAD DASHBOARD APPLICATION FILES
+      # ==========================================================
+
+      - name: Upload Dashboard Files
+        run: |
+
+          echo "Uploading dashboard application..."
+
+          aws s3 cp \
+            dashboard/ \
+            "s3://${REPORTS_BUCKET}/dashboard/" \
+            --recursive \
+            --region "${AWS_REGION}"
+
+          echo "Dashboard files uploaded successfully."
+
+
+      # ==========================================================
+      # VERIFY DASHBOARD FILES IN S3
+      # ==========================================================
+
+      - name: Verify Dashboard Files
+        run: |
+
+          echo "Checking dashboard files in S3..."
+
+          aws s3 ls \
+            "s3://${REPORTS_BUCKET}/dashboard/" \
+            --recursive \
+            --region "${AWS_REGION}"
+
+
+      # ==========================================================
+      # VALIDATE DASHBOARD CLOUDFORMATION TEMPLATE
+      # ==========================================================
+
       - name: Validate dashboard stack
         run: |
+
           aws cloudformation validate-template \
             --template-body file://cloudformation/dashboard-stack.yaml \
-            --region ${AWS_REGION}
+            --region "${AWS_REGION}"
+
+
+      # ==========================================================
+      # DEPLOY DASHBOARD STACK
+      # ==========================================================
 
       - name: Deploy dashboard stack
         run: |
+
           aws cloudformation deploy \
-            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
+            --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
             --template-file cloudformation/dashboard-stack.yaml \
-            --region ${AWS_REGION} \
+            --region "${AWS_REGION}" \
             --parameter-overrides \
-              Environment=${ENVIRONMENT} \
+              Environment="${ENVIRONMENT}" \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
+
+
+      # ==========================================================
+      # CHECK DASHBOARD STACK STATUS
+      # ==========================================================
 
       - name: Check dashboard stack status
         if: always()
         run: |
+
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
-            --region ${AWS_REGION} \
+            --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
+            --region "${AWS_REGION}" \
             --query "Stacks[0].StackStatus" \
             --output text
+
+
+      # ==========================================================
+      # SHOW DASHBOARD STACK EVENTS
+      # ==========================================================
 
       - name: Show dashboard stack events
         if: failure()
         run: |
+
           aws cloudformation describe-stack-events \
-            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
-            --region ${AWS_REGION} \
+            --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
+            --region "${AWS_REGION}" \
             --query "StackEvents[0:20].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" \
             --output table
+
+
+      # ==========================================================
+      # SHOW DASHBOARD OUTPUTS
+      # ==========================================================
 
       - name: Show dashboard outputs
         if: success()
         run: |
+
           aws cloudformation describe-stacks \
-            --stack-name cloudmart-${ENVIRONMENT}-dashboard \
-            --region ${AWS_REGION} \
+            --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
+            --region "${AWS_REGION}" \
             --query "Stacks[0].Outputs" \
             --output table

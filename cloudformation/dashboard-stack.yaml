@@ -57,6 +57,10 @@ Resources:
 
       Policies:
 
+        # ========================================================
+        # SSM PARAMETER STORE ACCESS
+        # ========================================================
+
         - PolicyName: DashboardSSMAccess
 
           PolicyDocument:
@@ -84,6 +88,10 @@ Resources:
 
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/storage/reports-bucket
 
+
+        # ========================================================
+        # S3 ACCESS
+        # ========================================================
 
         - PolicyName: DashboardS3Access
 
@@ -164,8 +172,29 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+
+      # ============================================================
+      # USERDATA
+      #
+      # The dashboard application files are no longer embedded here.
+      #
+      # GitHub Actions uploads:
+      #
+      # dashboard/app.py
+      # dashboard/requirements.txt
+      # dashboard/templates/index.html
+      #
+      # to the existing CloudMart reports S3 bucket.
+      #
+      # EC2 downloads those files during startup.
+      #
+      # This keeps UserData well below the EC2 25,600-byte limit.
+      # ============================================================
+
       UserData:
+
         Fn::Base64:
+
           !Sub |
             #!/bin/bash
 
@@ -181,6 +210,7 @@ Resources:
 
             set -e
 
+
             # ====================================================
             # SYSTEM UPDATE
             # ====================================================
@@ -189,18 +219,21 @@ Resources:
 
             dnf update -y
 
+
             # ====================================================
             # INSTALL REQUIRED PACKAGES
             # ====================================================
 
-            echo "Installing Python, Git, Nginx and SSM Agent..."
+            echo "Installing Python, Nginx, AWS CLI, curl and SSM Agent..."
 
             dnf install -y \
               python3 \
               python3-pip \
-              git \
               nginx \
-              amazon-ssm-agent
+              amazon-ssm-agent \
+              awscli \
+              curl
+
 
             # ====================================================
             # START SSM AGENT
@@ -209,9 +242,11 @@ Resources:
             echo "Starting Amazon SSM Agent..."
 
             systemctl enable amazon-ssm-agent
+
             systemctl start amazon-ssm-agent
 
             systemctl status amazon-ssm-agent --no-pager || true
+
 
             # ====================================================
             # CREATE DASHBOARD DIRECTORY
@@ -220,516 +255,68 @@ Resources:
             echo "Creating dashboard directory..."
 
             mkdir -p /opt/cloudmart-dashboard
+
             mkdir -p /opt/cloudmart-dashboard/templates
 
-            # ====================================================
-            # CREATE APPLICATION
-            # ====================================================
-
-            echo "Creating Flask application..."
-
-            cat > /opt/cloudmart-dashboard/app.py <<'PYTHON'
-            import logging
-            import os
-            from datetime import datetime
-
-            import boto3
-            import pymysql
-
-            from flask import Flask, render_template
-
-            app = Flask(__name__)
-
-            logging.basicConfig(level=logging.INFO)
-
-            ENVIRONMENT = os.environ["ENVIRONMENT"]
-
-            AWS_REGION = os.environ.get(
-                "AWS_REGION",
-                "ap-south-1"
-            )
-
-            DB_HOST_PARAMETER = (
-                f"/cloudmart/{ENVIRONMENT}/database/host"
-            )
-
-            DB_PORT_PARAMETER = (
-                f"/cloudmart/{ENVIRONMENT}/database/port"
-            )
-
-            DB_NAME_PARAMETER = (
-                f"/cloudmart/{ENVIRONMENT}/database/name"
-            )
-
-            DB_USERNAME_PARAMETER = (
-                f"/cloudmart/{ENVIRONMENT}/database/username"
-            )
-
-            DB_PASSWORD_PARAMETER = (
-                f"/cloudmart/{ENVIRONMENT}/database/password"
-            )
-
-            REPORTS_BUCKET_PARAMETER = (
-                f"/cloudmart/{ENVIRONMENT}/storage/reports-bucket"
-            )
-
-            # Explicitly specify AWS region.
-            # This prevents botocore.exceptions.NoRegionError.
-
-            ssm = boto3.client(
-                "ssm",
-                region_name=AWS_REGION
-            )
-
-            s3 = boto3.client(
-                "s3",
-                region_name=AWS_REGION
-            )
-
-
-            def get_parameter(name):
-
-                result = ssm.get_parameter(
-                    Name=name,
-                    WithDecryption=True
-                )
-
-                return result["Parameter"]["Value"]
-
-
-            def get_db_connection():
-
-                host = get_parameter(DB_HOST_PARAMETER)
-
-                port = int(
-                    get_parameter(DB_PORT_PARAMETER)
-                )
-
-                database = get_parameter(
-                    DB_NAME_PARAMETER
-                )
-
-                username = get_parameter(
-                    DB_USERNAME_PARAMETER
-                )
-
-                password = get_parameter(
-                    DB_PASSWORD_PARAMETER
-                )
-
-                return pymysql.connect(
-                    host=host,
-                    port=port,
-                    user=username,
-                    password=password,
-                    database=database,
-                    connect_timeout=10,
-                    cursorclass=pymysql.cursors.DictCursor
-                )
-
-
-            def get_products():
-
-                connection = None
-
-                try:
-
-                    connection = get_db_connection()
-
-                    with connection.cursor() as cursor:
-
-                        cursor.execute(
-                            """
-                            SELECT
-                                id,
-                                name,
-                                description,
-                                price,
-                                category,
-                                stock_count
-                            FROM products
-                            WHERE is_deleted = FALSE
-                            ORDER BY id
-                            """
-                        )
-
-                        return cursor.fetchall()
-
-                finally:
-
-                    if connection:
-                        connection.close()
-
-
-            def get_recent_orders():
-
-                connection = None
-
-                try:
-
-                    connection = get_db_connection()
-
-                    with connection.cursor() as cursor:
-
-                        cursor.execute(
-                            """
-                            SELECT
-                                o.id AS order_id,
-                                o.customer_id,
-                                o.status,
-                                o.created_at,
-                                oi.product_id,
-                                p.name AS product_name,
-                                oi.quantity,
-                                oi.price
-                            FROM orders o
-                            INNER JOIN order_items oi
-                                ON o.id = oi.order_id
-                            INNER JOIN products p
-                                ON oi.product_id = p.id
-                            WHERE o.is_deleted = FALSE
-                            AND oi.is_deleted = FALSE
-                            ORDER BY o.created_at DESC, oi.id DESC
-                            LIMIT 20
-                            """
-                        )
-
-                        return cursor.fetchall()
-
-                finally:
-
-                    if connection:
-                        connection.close()
-
-
-            def get_latest_report():
-
-                bucket_name = get_parameter(
-                    REPORTS_BUCKET_PARAMETER
-                )
-
-                result = s3.list_objects_v2(
-                    Bucket=bucket_name,
-                    Prefix="reports/"
-                )
-
-                contents = result.get("Contents", [])
-
-                if not contents:
-
-                    return None
-
-                latest = max(
-                    contents,
-                    key=lambda item: item["LastModified"]
-                )
-
-                object_key = latest["Key"]
-
-                url = s3.generate_presigned_url(
-                    "get_object",
-                    Params={
-                        "Bucket": bucket_name,
-                        "Key": object_key
-                    },
-                    ExpiresIn=3600
-                )
-
-                return {
-                    "key": object_key,
-                    "url": url,
-                    "last_modified": latest["LastModified"]
-                }
-
-
-            @app.route("/")
-            def dashboard():
-
-                try:
-
-                    products = get_products()
-
-                    orders = get_recent_orders()
-
-                    latest_report = get_latest_report()
-
-                    return render_template(
-                        "index.html",
-                        products=products,
-                        orders=orders,
-                        latest_report=latest_report,
-                        generated_at=datetime.now()
-                    )
-
-                except Exception as error:
-
-                    app.logger.exception(
-                        "Dashboard error"
-                    )
-
-                    return (
-                        f"""
-                        <h1>CloudMart Dashboard</h1>
-                        <h2>Dashboard Error</h2>
-                        <pre>{error}</pre>
-                        """,
-                        500
-                    )
-
-
-            @app.route("/health")
-            def health():
-
-                return {
-                    "status": "healthy",
-                    "service": "cloudmart-dashboard"
-                }
-
-
-            if __name__ == "__main__":
-
-                app.run(
-                    host="127.0.0.1",
-                    port=5000
-                )
-
-            PYTHON
 
             # ====================================================
-            # CREATE HTML TEMPLATE
+            # GET REPORTS BUCKET NAME FROM SSM
             # ====================================================
 
-            echo "Creating HTML template..."
+            echo "Getting CloudMart reports bucket name..."
 
-            cat > /opt/cloudmart-dashboard/templates/index.html <<'HTML'
-            <!DOCTYPE html>
-            <html lang="en">
+            REPORTS_BUCKET=$(aws ssm get-parameter \
+              --name "/cloudmart/${Environment}/storage/reports-bucket" \
+              --with-decryption \
+              --query "Parameter.Value" \
+              --output text \
+              --region ${AWS::Region})
 
-            <head>
+            echo "Reports bucket: $REPORTS_BUCKET"
 
-                <meta charset="UTF-8">
-
-                <meta name="viewport"
-                      content="width=device-width, initial-scale=1.0">
-
-                <title>CloudMart Operations Dashboard</title>
-
-                <style>
-
-                    body {
-                        font-family: Arial, sans-serif;
-                        margin: 0;
-                        padding: 30px;
-                        background: #f5f6f8;
-                    }
-
-                    h1 {
-                        margin-bottom: 5px;
-                    }
-
-                    .subtitle {
-                        color: #666;
-                        margin-bottom: 30px;
-                    }
-
-                    .card {
-                        background: white;
-                        padding: 20px;
-                        margin-bottom: 25px;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                    }
-
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
-
-                    th,
-                    td {
-                        padding: 10px;
-                        border-bottom: 1px solid #ddd;
-                        text-align: left;
-                    }
-
-                    th {
-                        background: #f0f1f3;
-                    }
-
-                    .low-stock {
-                        font-weight: bold;
-                    }
-
-                    .report-link {
-                        display: inline-block;
-                        padding: 10px 15px;
-                        background: #222;
-                        color: white;
-                        text-decoration: none;
-                        border-radius: 5px;
-                    }
-
-                </style>
-
-            </head>
-
-            <body>
-
-                <h1>CloudMart Operations Dashboard</h1>
-
-                <div class="subtitle">
-                    Environment: ${Environment}
-                </div>
-
-                <div class="card">
-
-                    <h2>Latest Daily Report</h2>
-
-                    {% if latest_report %}
-
-                        <p>
-                            {{ latest_report.key }}
-                        </p>
-
-                        <p>
-                            Last modified:
-                            {{ latest_report.last_modified }}
-                        </p>
-
-                        <a
-                            class="report-link"
-                            href="{{ latest_report.url }}"
-                            target="_blank">
-                            Open Latest Report
-                        </a>
-
-                    {% else %}
-
-                        <p>No report available.</p>
-
-                    {% endif %}
-
-                </div>
-
-                <div class="card">
-
-                    <h2>Current Product Inventory</h2>
-
-                    <table>
-
-                        <tr>
-                            <th>ID</th>
-                            <th>Product</th>
-                            <th>Category</th>
-                            <th>Price</th>
-                            <th>Stock</th>
-                        </tr>
-
-                        {% for product in products %}
-
-                        <tr>
-
-                            <td>
-                                {{ product.id }}
-                            </td>
-
-                            <td>
-                                {{ product.name }}
-                            </td>
-
-                            <td>
-                                {{ product.category }}
-                            </td>
-
-                            <td>
-                                ₹{{ product.price }}
-                            </td>
-
-                            <td class="{% if product.stock_count <= 5 %}low-stock{% endif %}">
-                                {{ product.stock_count }}
-                            </td>
-
-                        </tr>
-
-                        {% endfor %}
-
-                    </table>
-
-                </div>
-
-                <div class="card">
-
-                    <h2>Recent Orders</h2>
-
-                    <table>
-
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Customer</th>
-                            <th>Status</th>
-                            <th>Product</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
-                            <th>Created</th>
-                        </tr>
-
-                        {% for order in orders %}
-
-                        <tr>
-
-                            <td>
-                                {{ order.order_id }}
-                            </td>
-
-                            <td>
-                                {{ order.customer_id }}
-                            </td>
-
-                            <td>
-                                {{ order.status }}
-                            </td>
-
-                            <td>
-                                {{ order.product_name }}
-                            </td>
-
-                            <td>
-                                {{ order.quantity }}
-                            </td>
-
-                            <td>
-                                ₹{{ order.price }}
-                            </td>
-
-                            <td>
-                                {{ order.created_at }}
-                            </td>
-
-                        </tr>
-
-                        {% endfor %}
-
-                    </table>
-
-                </div>
-
-            </body>
-
-            </html>
-            HTML
 
             # ====================================================
-            # CREATE REQUIREMENTS
+            # DOWNLOAD DASHBOARD APPLICATION
             # ====================================================
 
-            echo "Creating Python requirements..."
+            echo "Downloading app.py..."
 
-            cat > /opt/cloudmart-dashboard/requirements.txt <<'REQUIREMENTS'
-            Flask
-            boto3
-            PyMySQL
-            gunicorn
-            REQUIREMENTS
+            aws s3 cp \
+              "s3://$REPORTS_BUCKET/dashboard/app.py" \
+              /opt/cloudmart-dashboard/app.py \
+              --region ${AWS::Region}
+
+
+            echo "Downloading requirements.txt..."
+
+            aws s3 cp \
+              "s3://$REPORTS_BUCKET/dashboard/requirements.txt" \
+              /opt/cloudmart-dashboard/requirements.txt \
+              --region ${AWS::Region}
+
+
+            echo "Downloading index.html..."
+
+            aws s3 cp \
+              "s3://$REPORTS_BUCKET/dashboard/templates/index.html" \
+              /opt/cloudmart-dashboard/templates/index.html \
+              --region ${AWS::Region}
+
+
+            # ====================================================
+            # VERIFY DASHBOARD FILES
+            # ====================================================
+
+            echo "Verifying dashboard files..."
+
+            test -f /opt/cloudmart-dashboard/app.py
+
+            test -f /opt/cloudmart-dashboard/requirements.txt
+
+            test -f /opt/cloudmart-dashboard/templates/index.html
+
+            echo "Dashboard files downloaded successfully."
+
 
             # ====================================================
             # INSTALL PYTHON DEPENDENCIES
@@ -740,6 +327,7 @@ Resources:
             python3 -m pip install \
               -r /opt/cloudmart-dashboard/requirements.txt
 
+
             # ====================================================
             # VERIFY GUNICORN
             # ====================================================
@@ -749,6 +337,22 @@ Resources:
             command -v gunicorn
 
             gunicorn --version
+
+
+            # ====================================================
+            # CREATE FLASK SECRET
+            # ====================================================
+
+            echo "Creating Flask secret..."
+
+            if [ ! -f /opt/cloudmart-dashboard/.flask_secret ]; then
+
+              python3 -c \
+                "import secrets; print(secrets.token_hex(32))" \
+                > /opt/cloudmart-dashboard/.flask_secret
+
+            fi
+
 
             # ====================================================
             # CREATE SYSTEMD SERVICE
@@ -765,8 +369,9 @@ Resources:
             [Service]
             User=root
             WorkingDirectory=/opt/cloudmart-dashboard
+
             Environment="ENVIRONMENT=${Environment}"
-            Environment="AWS_REGION=ap-south-1"
+            Environment="AWS_REGION=${AWS::Region}"
 
             ExecStart=/usr/local/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
 
@@ -776,6 +381,7 @@ Resources:
             [Install]
             WantedBy=multi-user.target
             SERVICE
+
 
             # ====================================================
             # CONFIGURE NGINX
@@ -807,6 +413,7 @@ Resources:
             }
             NGINX
 
+
             # ====================================================
             # START DASHBOARD SERVICE
             # ====================================================
@@ -823,6 +430,7 @@ Resources:
 
             systemctl status cloudmart-dashboard --no-pager || true
 
+
             # ====================================================
             # TEST FLASK APPLICATION
             # ====================================================
@@ -830,6 +438,7 @@ Resources:
             echo "Testing Flask health endpoint..."
 
             curl --fail http://127.0.0.1:5000/health
+
 
             # ====================================================
             # START NGINX
@@ -843,6 +452,7 @@ Resources:
 
             systemctl restart nginx
 
+
             # ====================================================
             # FINAL STATUS
             # ====================================================
@@ -852,7 +462,9 @@ Resources:
             echo "===================================================="
 
             systemctl status amazon-ssm-agent --no-pager || true
+
             systemctl status cloudmart-dashboard --no-pager || true
+
             systemctl status nginx --no-pager || true
 
 
