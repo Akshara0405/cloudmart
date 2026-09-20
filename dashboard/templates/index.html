@@ -5,8 +5,10 @@
 
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>CloudMart Operations Dashboard</title>
 
@@ -17,10 +19,15 @@
             margin: 0;
             padding: 30px;
             background: #f5f6f8;
+            color: #222;
         }
 
         h1 {
             margin-bottom: 5px;
+        }
+
+        h2 {
+            margin-top: 0;
         }
 
         .subtitle {
@@ -33,7 +40,75 @@
             padding: 20px;
             margin-bottom: 25px;
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .login-card {
+            max-width: 450px;
+            margin: 80px auto;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            margin: 10px 0 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background: #222;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .error {
+            color: #b00020;
+            margin-bottom: 15px;
+        }
+
+        .logout-link {
+            float: right;
+            padding: 8px 12px;
+            background: #222;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+        .widgets {
+            display: grid;
+            grid-template-columns:
+                repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .widget {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .widget-title {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .widget-value {
+            font-size: 32px;
+            font-weight: bold;
         }
 
         table {
@@ -44,7 +119,8 @@
         th,
         td {
             padding: 10px;
-            border-bottom: 1px solid #ddd;
+            border-bottom:
+                1px solid #ddd;
             text-align: left;
         }
 
@@ -65,21 +141,156 @@
             border-radius: 5px;
         }
 
+        .role {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 900px) {
+
+            .widgets {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+
+            body {
+                padding: 15px;
+            }
+        }
+
     </style>
 
 </head>
 
+
 <body>
 
-    <h1>CloudMart Operations Dashboard</h1>
+{% if not authenticated %}
+
+    <div class="card login-card">
+
+        <h1>CloudMart Admin</h1>
+
+        <div class="subtitle">
+            Admin authentication is required
+            to access the dashboard.
+        </div>
+
+        {% if login_error %}
+
+            <div class="error">
+                {{ login_error }}
+            </div>
+
+        {% endif %}
+
+        <form
+            method="POST"
+            action="{{ url_for('login') }}"
+        >
+
+            <label for="admin_token">
+                Admin Token
+            </label>
+
+            <input
+                type="password"
+                id="admin_token"
+                name="admin_token"
+                placeholder="Enter admin token"
+                required
+            >
+
+            <button type="submit">
+                Login
+            </button>
+
+        </form>
+
+    </div>
+
+{% else %}
+
+    <a
+        class="logout-link"
+        href="{{ url_for('logout') }}"
+    >
+        Logout
+    </a>
+
+    <h1>
+        CloudMart Operations Dashboard
+    </h1>
 
     <div class="subtitle">
-        Environment: {{ environment }}
+        Environment: {{ config.get("ENVIRONMENT", "dev") }}
     </div>
+
+    <div class="role">
+        Role: {{ session.get("admin_role", "admin") }}
+    </div>
+
+
+    <!-- ======================================================
+         ORDER WIDGETS
+         ====================================================== -->
+
+    <div class="widgets">
+
+        <div class="widget">
+
+            <div class="widget-title">
+                Total Orders
+            </div>
+
+            <div class="widget-value">
+                {{ order_counts.total_orders }}
+            </div>
+
+        </div>
+
+
+        <div class="widget">
+
+            <div class="widget-title">
+                Confirmed Orders
+            </div>
+
+            <div class="widget-value">
+                {{ order_counts.confirmed_orders }}
+            </div>
+
+        </div>
+
+
+        <div class="widget">
+
+            <div class="widget-title">
+                Failed Orders
+            </div>
+
+            <div class="widget-value">
+                {{ order_counts.failed_orders }}
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ======================================================
+         REPORT
+         ====================================================== -->
 
     <div class="card">
 
-        <h2>Latest Daily Report</h2>
+        <h2>
+            Latest Daily Report
+        </h2>
 
         {% if latest_report %}
 
@@ -95,30 +306,42 @@
             <a
                 class="report-link"
                 href="{{ latest_report.url }}"
-                target="_blank">
+                target="_blank"
+            >
                 Open Latest Report
             </a>
 
         {% else %}
 
-            <p>No report available.</p>
+            <p>
+                No report available.
+            </p>
 
         {% endif %}
 
     </div>
 
+
+    <!-- ======================================================
+         PRODUCT INVENTORY
+         ====================================================== -->
+
     <div class="card">
 
-        <h2>Current Product Inventory</h2>
+        <h2>
+            Current Product Inventory
+        </h2>
 
         <table>
 
             <tr>
+
                 <th>ID</th>
                 <th>Product</th>
                 <th>Category</th>
                 <th>Price</th>
                 <th>Stock</th>
+
             </tr>
 
             {% for product in products %}
@@ -141,7 +364,13 @@
                     ₹{{ product.price }}
                 </td>
 
-                <td class="{% if product.stock_count <= 5 %}low-stock{% endif %}">
+                <td
+                    class="
+                    {% if product.stock_count <= 5 %}
+                        low-stock
+                    {% endif %}
+                    "
+                >
                     {{ product.stock_count }}
                 </td>
 
@@ -153,13 +382,21 @@
 
     </div>
 
+
+    <!-- ======================================================
+         RECENT ORDERS
+         ====================================================== -->
+
     <div class="card">
 
-        <h2>Recent Orders</h2>
+        <h2>
+            Recent Orders
+        </h2>
 
         <table>
 
             <tr>
+
                 <th>Order ID</th>
                 <th>Customer</th>
                 <th>Status</th>
@@ -167,6 +404,7 @@
                 <th>Quantity</th>
                 <th>Price</th>
                 <th>Created</th>
+
             </tr>
 
             {% for order in orders %}
@@ -208,6 +446,14 @@
         </table>
 
     </div>
+
+
+    <div class="subtitle">
+        Generated:
+        {{ generated_at }}
+    </div>
+
+{% endif %}
 
 </body>
 

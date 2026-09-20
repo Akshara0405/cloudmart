@@ -8,7 +8,6 @@ Parameters:
 
   Environment:
     Type: String
-
     AllowedValues:
       - dev
       - prod
@@ -57,9 +56,9 @@ Resources:
 
       Policies:
 
-        # ========================================================
-        # SSM PARAMETER STORE ACCESS
-        # ========================================================
+        # ======================================================
+        # SSM ACCESS
+        # ======================================================
 
         - PolicyName: DashboardSSMAccess
 
@@ -76,22 +75,28 @@ Resources:
 
                 Resource:
 
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
+                  - !Sub
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/host
 
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
+                  - !Sub
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/port
 
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
+                  - !Sub
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/name
 
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
+                  - !Sub
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/username
 
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
+                  - !Sub
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/database/password
 
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/storage/reports-bucket
+                  - !Sub
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloudmart/${Environment}/storage/reports-bucket
 
 
-        # ========================================================
+        # ======================================================
         # S3 ACCESS
-        # ========================================================
+        # ======================================================
 
         - PolicyName: DashboardS3Access
 
@@ -107,7 +112,10 @@ Resources:
                   - s3:ListBucket
 
                 Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
+
+                  - !Sub
+                    arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
+
 
               - Effect: Allow
 
@@ -115,7 +123,9 @@ Resources:
                   - s3:GetObject
 
                 Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}/*
+
+                  - !Sub
+                    arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}/*
 
 
   # ============================================================
@@ -131,6 +141,7 @@ Resources:
         !Sub CloudMart-${Environment}-Dashboard-InstanceProfile
 
       Roles:
+
         - !Ref DashboardInstanceRole
 
 
@@ -164,186 +175,82 @@ Resources:
       Tags:
 
         - Key: Name
-          Value: !Sub CloudMart-${Environment}-Dashboard
+          Value:
+            !Sub CloudMart-${Environment}-Dashboard
 
         - Key: Project
           Value: CloudMart
 
         - Key: Environment
-          Value: !Ref Environment
+          Value:
+            !Ref Environment
 
 
-      # ============================================================
-      # USERDATA
-      #
-      # The dashboard application files are no longer embedded here.
-      #
-      # GitHub Actions uploads:
-      #
-      # dashboard/app.py
-      # dashboard/requirements.txt
-      # dashboard/templates/index.html
-      #
-      # to the existing CloudMart reports S3 bucket.
-      #
-      # EC2 downloads those files during startup.
-      #
-      # This keeps UserData well below the EC2 25,600-byte limit.
-      # ============================================================
+      # ========================================================
+      # SMALL USERDATA
+      # ========================================================
 
       UserData:
 
         Fn::Base64:
 
           !Sub |
+
             #!/bin/bash
 
-            # ====================================================
-            # USERDATA LOGGING
-            # ====================================================
+            set -e
 
             exec > >(tee /var/log/cloudmart-userdata.log | logger -t cloudmart-userdata -s 2>/dev/console) 2>&1
+
 
             echo "===================================================="
             echo "CloudMart Dashboard UserData started"
             echo "===================================================="
 
-            set -e
 
-
-            # ====================================================
+            # ==================================================
             # SYSTEM UPDATE
-            # ====================================================
+            # ==================================================
 
             echo "Updating system..."
 
             dnf update -y
 
 
-            # ====================================================
+            # ==================================================
             # INSTALL REQUIRED PACKAGES
-            # ====================================================
+            # ==================================================
 
-            echo "Installing Python, Nginx, AWS CLI, curl and SSM Agent..."
+            echo "Installing required packages..."
 
             dnf install -y \
               python3 \
               python3-pip \
               nginx \
-              amazon-ssm-agent \
-              awscli \
-              curl
+              amazon-ssm-agent
 
 
-            # ====================================================
+            # ==================================================
             # START SSM AGENT
-            # ====================================================
-
-            echo "Starting Amazon SSM Agent..."
+            # ==================================================
 
             systemctl enable amazon-ssm-agent
 
             systemctl start amazon-ssm-agent
 
-            systemctl status amazon-ssm-agent --no-pager || true
 
-
-            # ====================================================
-            # CREATE DASHBOARD DIRECTORY
-            # ====================================================
-
-            echo "Creating dashboard directory..."
+            # ==================================================
+            # CREATE DASHBOARD DIRECTORIES
+            # ==================================================
 
             mkdir -p /opt/cloudmart-dashboard
 
             mkdir -p /opt/cloudmart-dashboard/templates
 
 
-            # ====================================================
-            # GET REPORTS BUCKET NAME FROM SSM
-            # ====================================================
-
-            echo "Getting CloudMart reports bucket name..."
-
-            REPORTS_BUCKET=$(aws ssm get-parameter \
-              --name "/cloudmart/${Environment}/storage/reports-bucket" \
-              --with-decryption \
-              --query "Parameter.Value" \
-              --output text \
-              --region ${AWS::Region})
-
-            echo "Reports bucket: $REPORTS_BUCKET"
-
-
-            # ====================================================
-            # DOWNLOAD DASHBOARD APPLICATION
-            # ====================================================
-
-            echo "Downloading app.py..."
-
-            aws s3 cp \
-              "s3://$REPORTS_BUCKET/dashboard/app.py" \
-              /opt/cloudmart-dashboard/app.py \
-              --region ${AWS::Region}
-
-
-            echo "Downloading requirements.txt..."
-
-            aws s3 cp \
-              "s3://$REPORTS_BUCKET/dashboard/requirements.txt" \
-              /opt/cloudmart-dashboard/requirements.txt \
-              --region ${AWS::Region}
-
-
-            echo "Downloading index.html..."
-
-            aws s3 cp \
-              "s3://$REPORTS_BUCKET/dashboard/templates/index.html" \
-              /opt/cloudmart-dashboard/templates/index.html \
-              --region ${AWS::Region}
-
-
-            # ====================================================
-            # VERIFY DASHBOARD FILES
-            # ====================================================
-
-            echo "Verifying dashboard files..."
-
-            test -f /opt/cloudmart-dashboard/app.py
-
-            test -f /opt/cloudmart-dashboard/requirements.txt
-
-            test -f /opt/cloudmart-dashboard/templates/index.html
-
-            echo "Dashboard files downloaded successfully."
-
-
-            # ====================================================
-            # INSTALL PYTHON DEPENDENCIES
-            # ====================================================
-
-            echo "Installing Python dependencies..."
-
-            python3 -m pip install \
-              -r /opt/cloudmart-dashboard/requirements.txt
-
-
-            # ====================================================
-            # VERIFY GUNICORN
-            # ====================================================
-
-            echo "Checking Gunicorn installation..."
-
-            command -v gunicorn
-
-            gunicorn --version
-
-
-            # ====================================================
+            # ==================================================
             # CREATE FLASK SECRET
-            # ====================================================
-
-            echo "Creating Flask secret..."
+            # ==================================================
 
             if [ ! -f /opt/cloudmart-dashboard/.flask_secret ]; then
 
@@ -351,16 +258,72 @@ Resources:
                 "import secrets; print(secrets.token_hex(32))" \
                 > /opt/cloudmart-dashboard/.flask_secret
 
+              chmod 600 \
+                /opt/cloudmart-dashboard/.flask_secret
+
             fi
 
 
-            # ====================================================
+            # ==================================================
+            # REPORTS BUCKET
+            # ==================================================
+
+            REPORTS_BUCKET="cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}"
+
+
+            # ==================================================
+            # DOWNLOAD DASHBOARD APPLICATION
+            # ==================================================
+
+            echo "Downloading dashboard application..."
+
+            aws s3 cp \
+              "s3://$REPORTS_BUCKET/dashboard/app.py" \
+              /opt/cloudmart-dashboard/app.py \
+              --region "${AWS::Region}"
+
+
+            aws s3 cp \
+              "s3://$REPORTS_BUCKET/dashboard/requirements.txt" \
+              /opt/cloudmart-dashboard/requirements.txt \
+              --region "${AWS::Region}"
+
+
+            aws s3 cp \
+              "s3://$REPORTS_BUCKET/dashboard/templates/index.html" \
+              /opt/cloudmart-dashboard/templates/index.html \
+              --region "${AWS::Region}"
+
+
+            # ==================================================
+            # INSTALL PYTHON DEPENDENCIES
+            # ==================================================
+
+            echo "Installing Python dependencies..."
+
+            python3 -m pip install \
+              -r /opt/cloudmart-dashboard/requirements.txt
+
+
+            # ==================================================
+            # VERIFY GUNICORN
+            # ==================================================
+
+            echo "Checking Gunicorn..."
+
+            command -v gunicorn
+
+            gunicorn --version
+
+
+            # ==================================================
             # CREATE SYSTEMD SERVICE
-            # ====================================================
+            # ==================================================
 
-            echo "Creating CloudMart dashboard systemd service..."
+            echo "Creating CloudMart dashboard service..."
 
-            cat > /etc/systemd/system/cloudmart-dashboard.service <<'SERVICE'
+            cat > /etc/systemd/system/cloudmart-dashboard.service <<SERVICE
+
             [Unit]
             Description=CloudMart Flask Dashboard
             After=network-online.target
@@ -380,21 +343,33 @@ Resources:
 
             [Install]
             WantedBy=multi-user.target
+
             SERVICE
 
 
-            # ====================================================
-            # CONFIGURE NGINX
-            # ====================================================
+            # ==================================================
+            # REMOVE DEFAULT NGINX CONFIGURATION
+            # ==================================================
 
-            echo "Configuring Nginx..."
+            echo "Removing default Nginx configuration..."
+
+            rm -f /etc/nginx/conf.d/default.conf
+
+
+            # ==================================================
+            # CREATE NGINX CONFIGURATION
+            # ==================================================
+
+            echo "Creating CloudMart Nginx configuration..."
 
             cat > /etc/nginx/conf.d/cloudmart-dashboard.conf <<'NGINX'
+
             server {
 
                 listen 80;
 
                 server_name _;
+
 
                 location / {
 
@@ -411,12 +386,13 @@ Resources:
                 }
 
             }
+
             NGINX
 
 
-            # ====================================================
-            # START DASHBOARD SERVICE
-            # ====================================================
+            # ==================================================
+            # START GUNICORN
+            # ==================================================
 
             echo "Starting CloudMart dashboard..."
 
@@ -426,51 +402,51 @@ Resources:
 
             systemctl restart cloudmart-dashboard
 
+
+            # ==================================================
+            # WAIT FOR APPLICATION
+            # ==================================================
+
             sleep 5
 
-            systemctl status cloudmart-dashboard --no-pager || true
+
+            # ==================================================
+            # HEALTH CHECK
+            # ==================================================
+
+            echo "Testing Flask application..."
+
+            curl --fail \
+              http://127.0.0.1:5000/health
 
 
-            # ====================================================
-            # TEST FLASK APPLICATION
-            # ====================================================
-
-            echo "Testing Flask health endpoint..."
-
-            curl --fail http://127.0.0.1:5000/health
-
-
-            # ====================================================
+            # ==================================================
             # START NGINX
-            # ====================================================
+            # ==================================================
 
             echo "Starting Nginx..."
 
-            systemctl enable nginx
-
             nginx -t
+
+            systemctl enable nginx
 
             systemctl restart nginx
 
 
-            # ====================================================
+            # ==================================================
             # FINAL STATUS
-            # ====================================================
+            # ==================================================
 
             echo "===================================================="
             echo "CloudMart Dashboard UserData completed successfully"
             echo "===================================================="
 
-            systemctl status amazon-ssm-agent --no-pager || true
-
             systemctl status cloudmart-dashboard --no-pager || true
 
             systemctl status nginx --no-pager || true
 
+            systemctl status amazon-ssm-agent --no-pager || true
 
-# ============================================================
-# OUTPUTS
-# ============================================================
 
 Outputs:
 
