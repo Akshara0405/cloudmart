@@ -227,6 +227,7 @@ Resources:
               python3 \
               python3-pip \
               nginx \
+              awscli-2 \
               amazon-ssm-agent
 
 
@@ -480,3 +481,4 @@ Outputs:
 
     Value:
       !GetAtt DashboardInstanceRole.Arn
+    
