@@ -109,6 +109,7 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:s3:::cloudmart-${Environment}-reports-${AWS::AccountId}-${AWS::Region}
 
+
               - Effect: Allow
 
                 Action:
@@ -161,6 +162,7 @@ Resources:
         - Fn::ImportValue:
             !Sub CloudMart-${Environment}-EC2SecurityGroupId
 
+
       Tags:
 
         - Key: Name
@@ -176,19 +178,20 @@ Resources:
       # ============================================================
       # USERDATA
       #
-      # The dashboard application files are no longer embedded here.
+      # IMPORTANT:
       #
-      # GitHub Actions uploads:
+      # UserData is ONLY responsible for bootstrapping the EC2.
       #
-      # dashboard/app.py
-      # dashboard/requirements.txt
-      # dashboard/templates/index.html
+      # GitHub Actions is responsible for downloading the latest
+      # dashboard application and installing Python dependencies.
       #
-      # to the existing CloudMart reports S3 bucket.
+      # This prevents UserData from failing because of:
       #
-      # EC2 downloads those files during startup.
+      # - S3 application files
+      # - pip installation
+      # - Gunicorn
+      # - Flask health checks
       #
-      # This keeps UserData well below the EC2 25,600-byte limit.
       # ============================================================
 
       UserData:
@@ -196,7 +199,9 @@ Resources:
         Fn::Base64:
 
           !Sub |
+
             #!/bin/bash
+
 
             # ====================================================
             # USERDATA LOGGING
@@ -204,11 +209,18 @@ Resources:
 
             exec > >(tee /var/log/cloudmart-userdata.log | logger -t cloudmart-userdata -s 2>/dev/console) 2>&1
 
-            echo "===================================================="
-            echo "CloudMart Dashboard UserData started"
+
             echo "===================================================="
 
-            set -e
+            echo "CloudMart Dashboard UserData started"
+
+            echo "===================================================="
+
+
+            # Do NOT use set -e here.
+            #
+            # Bootstrap must reach the completion marker even if
+            # an individual non-critical command has an issue.
 
 
             # ====================================================
@@ -217,14 +229,14 @@ Resources:
 
             echo "Updating system..."
 
-            dnf update -y
+            dnf update -y || echo "WARNING: dnf update failed"
 
 
             # ====================================================
             # INSTALL REQUIRED PACKAGES
             # ====================================================
 
-            echo "Installing Python, Nginx, AWS CLI, curl and SSM Agent..."
+            echo "Installing required packages..."
 
             dnf install -y \
               python3 \
@@ -232,7 +244,25 @@ Resources:
               nginx \
               amazon-ssm-agent \
               awscli \
-              curl
+              curl \
+              || echo "WARNING: package installation encountered an error"
+
+
+            # ====================================================
+            # VERIFY BASIC COMMANDS
+            # ====================================================
+
+            echo "Checking installed commands..."
+
+            command -v python3 || true
+
+            command -v pip3 || true
+
+            command -v nginx || true
+
+            command -v aws || true
+
+            command -v curl || true
 
 
             # ====================================================
@@ -241,18 +271,18 @@ Resources:
 
             echo "Starting Amazon SSM Agent..."
 
-            systemctl enable amazon-ssm-agent
+            systemctl enable amazon-ssm-agent || true
 
-            systemctl start amazon-ssm-agent
+            systemctl restart amazon-ssm-agent || true
 
             systemctl status amazon-ssm-agent --no-pager || true
 
 
             # ====================================================
-            # CREATE DASHBOARD DIRECTORY
+            # CREATE DASHBOARD DIRECTORIES
             # ====================================================
 
-            echo "Creating dashboard directory..."
+            echo "Creating dashboard directories..."
 
             mkdir -p /opt/cloudmart-dashboard
 
@@ -260,96 +290,17 @@ Resources:
 
 
             # ====================================================
-            # GET REPORTS BUCKET NAME FROM SSM
-            # ====================================================
-
-            echo "Getting CloudMart reports bucket name..."
-
-            REPORTS_BUCKET=$(aws ssm get-parameter \
-              --name "/cloudmart/${Environment}/storage/reports-bucket" \
-              --with-decryption \
-              --query "Parameter.Value" \
-              --output text \
-              --region ${AWS::Region})
-
-            echo "Reports bucket: $REPORTS_BUCKET"
-
-
-            # ====================================================
-            # DOWNLOAD DASHBOARD APPLICATION
-            # ====================================================
-
-            echo "Downloading app.py..."
-
-            aws s3 cp \
-              "s3://$REPORTS_BUCKET/dashboard/app.py" \
-              /opt/cloudmart-dashboard/app.py \
-              --region ${AWS::Region}
-
-
-            echo "Downloading requirements.txt..."
-
-            aws s3 cp \
-              "s3://$REPORTS_BUCKET/dashboard/requirements.txt" \
-              /opt/cloudmart-dashboard/requirements.txt \
-              --region ${AWS::Region}
-
-
-            echo "Downloading index.html..."
-
-            aws s3 cp \
-              "s3://$REPORTS_BUCKET/dashboard/templates/index.html" \
-              /opt/cloudmart-dashboard/templates/index.html \
-              --region ${AWS::Region}
-
-
-            # ====================================================
-            # VERIFY DASHBOARD FILES
-            # ====================================================
-
-            echo "Verifying dashboard files..."
-
-            test -f /opt/cloudmart-dashboard/app.py
-
-            test -f /opt/cloudmart-dashboard/requirements.txt
-
-            test -f /opt/cloudmart-dashboard/templates/index.html
-
-            echo "Dashboard files downloaded successfully."
-
-
-            # ====================================================
-            # INSTALL PYTHON DEPENDENCIES
-            # ====================================================
-
-            echo "Installing Python dependencies..."
-
-            python3 -m pip install \
-              -r /opt/cloudmart-dashboard/requirements.txt
-
-
-            # ====================================================
-            # VERIFY GUNICORN
-            # ====================================================
-
-            echo "Checking Gunicorn installation..."
-
-            command -v gunicorn
-
-            gunicorn --version
-
-
-            # ====================================================
             # CREATE FLASK SECRET
             # ====================================================
 
-            echo "Creating Flask secret..."
+            echo "Creating Flask secret if required..."
 
             if [ ! -f /opt/cloudmart-dashboard/.flask_secret ]; then
 
               python3 -c \
                 "import secrets; print(secrets.token_hex(32))" \
-                > /opt/cloudmart-dashboard/.flask_secret
+                > /opt/cloudmart-dashboard/.flask_secret \
+                || true
 
             fi
 
@@ -360,7 +311,9 @@ Resources:
 
             echo "Creating CloudMart dashboard systemd service..."
 
+
             cat > /etc/systemd/system/cloudmart-dashboard.service <<'SERVICE'
+
             [Unit]
             Description=CloudMart Flask Dashboard
             After=network-online.target
@@ -380,6 +333,7 @@ Resources:
 
             [Install]
             WantedBy=multi-user.target
+
             SERVICE
 
 
@@ -389,7 +343,9 @@ Resources:
 
             echo "Configuring Nginx..."
 
+
             cat > /etc/nginx/conf.d/cloudmart-dashboard.conf <<'NGINX'
+
             server {
 
                 listen 80;
@@ -411,46 +367,42 @@ Resources:
                 }
 
             }
+
             NGINX
 
 
             # ====================================================
-            # START DASHBOARD SERVICE
+            # ENABLE NGINX
             # ====================================================
 
-            echo "Starting CloudMart dashboard..."
+            echo "Preparing Nginx..."
 
-            systemctl daemon-reload
+            systemctl enable nginx || true
 
-            systemctl enable cloudmart-dashboard
-
-            systemctl restart cloudmart-dashboard
-
-            sleep 5
-
-            systemctl status cloudmart-dashboard --no-pager || true
+            nginx -t || true
 
 
             # ====================================================
-            # TEST FLASK APPLICATION
+            # RELOAD SYSTEMD
             # ====================================================
 
-            echo "Testing Flask health endpoint..."
+            systemctl daemon-reload || true
 
-            curl --fail http://127.0.0.1:5000/health
+            systemctl enable cloudmart-dashboard || true
 
 
             # ====================================================
-            # START NGINX
+            # USERDATA COMPLETION MARKER
+            #
+            # This is the important part.
+            #
+            # GitHub Actions will wait for this file instead of
+            # waiting for cloudmart-dashboard.service.
             # ====================================================
 
-            echo "Starting Nginx..."
+            echo "Creating UserData completion marker..."
 
-            systemctl enable nginx
-
-            nginx -t
-
-            systemctl restart nginx
+            touch /opt/cloudmart-dashboard/.userdata-complete
 
 
             # ====================================================
@@ -458,16 +410,15 @@ Resources:
             # ====================================================
 
             echo "===================================================="
-            echo "CloudMart Dashboard UserData completed successfully"
+
+            echo "CloudMart Dashboard UserData completed"
+
             echo "===================================================="
 
-            # This marker lets the GitHub Actions SSM deployment wait until
-            # the initial EC2 bootstrap has completely finished.
-            touch /opt/cloudmart-dashboard/.userdata-complete
+            echo "UserData completion marker created."
+
 
             systemctl status amazon-ssm-agent --no-pager || true
-
-            systemctl status cloudmart-dashboard --no-pager || true
 
             systemctl status nginx --no-pager || true
 

@@ -634,10 +634,6 @@ jobs:
   # EC2 DASHBOARD
   # ============================================================
 
-    # ============================================================
-  # EC2 DASHBOARD
-  # ============================================================
-
   deploy-dashboard:
     name: Deploy EC2 Dashboard
 
@@ -648,9 +644,17 @@ jobs:
 
     steps:
 
+      # ==========================================================
+      # CHECKOUT
+      # ==========================================================
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      # ==========================================================
+      # AWS CREDENTIALS
+      # ==========================================================
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -659,11 +663,19 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
 
+      # ==========================================================
+      # VERIFY AWS
+      # ==========================================================
+
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
           echo "AWS Region: ${AWS_REGION}"
 
+
+      # ==========================================================
+      # GET REPORTS BUCKET
+      # ==========================================================
 
       - name: Get Reports Bucket
         shell: bash
@@ -678,10 +690,19 @@ jobs:
               --region "${AWS_REGION}"
           )
 
+          if [ -z "${REPORTS_BUCKET}" ] || [ "${REPORTS_BUCKET}" = "None" ]; then
+            echo "Reports bucket was not found."
+            exit 1
+          fi
+
           echo "REPORTS_BUCKET=${REPORTS_BUCKET}" >> "${GITHUB_ENV}"
 
           echo "Reports bucket: ${REPORTS_BUCKET}"
 
+
+      # ==========================================================
+      # VERIFY DASHBOARD FILES
+      # ==========================================================
 
       - name: Verify Dashboard Files
         run: |
@@ -695,8 +716,14 @@ jobs:
           echo "Dashboard files verified."
 
 
+      # ==========================================================
+      # UPLOAD LATEST DASHBOARD FILES
+      # ==========================================================
+
       - name: Upload Dashboard Files
         run: |
+
+          echo "Uploading latest dashboard files..."
 
           aws s3 cp \
             dashboard/ \
@@ -704,6 +731,10 @@ jobs:
             --recursive \
             --region "${AWS_REGION}"
 
+
+      # ==========================================================
+      # VERIFY S3 UPLOAD
+      # ==========================================================
 
       - name: Verify Dashboard Upload
         run: |
@@ -714,6 +745,10 @@ jobs:
             --region "${AWS_REGION}"
 
 
+      # ==========================================================
+      # VALIDATE DASHBOARD CLOUDFORMATION
+      # ==========================================================
+
       - name: Validate Dashboard Stack
         run: |
 
@@ -721,6 +756,10 @@ jobs:
             --template-body file://cloudformation/dashboard-stack.yaml \
             --region "${AWS_REGION}"
 
+
+      # ==========================================================
+      # DEPLOY DASHBOARD STACK
+      # ==========================================================
 
       - name: Deploy Dashboard Stack
         run: |
@@ -735,6 +774,10 @@ jobs:
             --no-fail-on-empty-changeset
 
 
+      # ==========================================================
+      # DASHBOARD STACK STATUS
+      # ==========================================================
+
       - name: Dashboard Stack Status
         run: |
 
@@ -745,8 +788,25 @@ jobs:
             --output text
 
 
+      # ==========================================================
+      # DASHBOARD STACK OUTPUTS
+      # ==========================================================
+
+      - name: Dashboard Stack Outputs
+        run: |
+
+          aws cloudformation describe-stacks \
+            --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
+            --region "${AWS_REGION}" \
+            --query "Stacks[0].Outputs" \
+            --output table
+
+
+      # ==========================================================
+      # GET EC2 INSTANCE ID
+      # ==========================================================
+
       - name: Get Dashboard EC2 Instance ID
-        id: dashboard-instance
         shell: bash
         run: |
 
@@ -754,7 +814,7 @@ jobs:
             aws cloudformation describe-stacks \
               --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
               --region "${AWS_REGION}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DashboardInstanceId'].OutputValue" \
+              --query "Stacks[0].Outputs[?OutputKey=='DashboardInstanceId'].OutputValue | [0]" \
               --output text
           )
 
@@ -763,136 +823,564 @@ jobs:
             exit 1
           fi
 
-          echo "Dashboard EC2 instance: ${INSTANCE_ID}"
-          echo "INSTANCE_ID=${INSTANCE_ID}" >> "${GITHUB_ENV}"
+          echo "DASHBOARD_INSTANCE_ID=${INSTANCE_ID}" >> "${GITHUB_ENV}"
+
+          echo "Dashboard EC2: ${INSTANCE_ID}"
 
 
-      - name: Wait for EC2 to become available in SSM
+      # ==========================================================
+      # WAIT FOR EC2 TO REGISTER WITH SSM
+      # ==========================================================
+
+      - name: Wait for EC2 to become SSM managed
         shell: bash
         run: |
 
-          echo "Waiting for ${INSTANCE_ID} to become an SSM managed instance..."
+          echo "Waiting for ${DASHBOARD_INSTANCE_ID} to register with SSM..."
 
-          for attempt in $(seq 1 60); do
+          for attempt in {1..60}; do
 
             STATUS=$(
               aws ssm describe-instance-information \
-                --filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
+                --filters "Key=InstanceIds,Values=${DASHBOARD_INSTANCE_ID}" \
                 --region "${AWS_REGION}" \
                 --query "InstanceInformationList[0].PingStatus" \
                 --output text 2>/dev/null || true
             )
 
-            echo "SSM status: ${STATUS:-NotRegistered} (attempt ${attempt}/60)"
+            echo "SSM status: ${STATUS}"
 
             if [ "${STATUS}" = "Online" ]; then
-              break
-            fi
 
-            if [ "${attempt}" -eq 60 ]; then
-              echo "EC2 did not become Online in SSM within the expected time."
-              exit 1
+              echo "EC2 is online in SSM."
+
+              exit 0
+
             fi
 
             sleep 10
 
           done
 
+          echo "EC2 did not become SSM managed within the expected time."
 
-      - name: Update dashboard on EC2 through SSM
+          exit 1
+
+
+      # ==========================================================
+      # UPDATE DASHBOARD THROUGH SSM
+      #
+      # IMPORTANT:
+      #
+      # Do NOT wait for cloudmart-dashboard.service here.
+      #
+      # UserData creates that service.
+      #
+      # Instead wait for:
+      #
+      # /opt/cloudmart-dashboard/.userdata-complete
+      #
+      # ==========================================================
+
+      - name: Update dashboard files through SSM
         shell: bash
         run: |
 
-          cat > /tmp/cloudmart-dashboard-ssm.json <<EOF
-          {
-            "DocumentName": "AWS-RunShellScript",
-            "InstanceIds": ["${INSTANCE_ID}"],
-            "Comment": "CloudMart dashboard deployment ${GITHUB_SHA}",
-            "Parameters": {
-              "commands": [
-                "set -e",
-                "for attempt in \$(seq 1 60); do test -f /opt/cloudmart-dashboard/.userdata-complete && break; if [ \"\${attempt}\" -eq 60 ]; then echo 'EC2 UserData did not finish'; exit 1; fi; sleep 5; done",
-                "mkdir -p /opt/cloudmart-dashboard/templates",
-                "aws s3 cp s3://${REPORTS_BUCKET}/dashboard/app.py /opt/cloudmart-dashboard/app.py --region ${AWS_REGION}",
-                "aws s3 cp s3://${REPORTS_BUCKET}/dashboard/requirements.txt /opt/cloudmart-dashboard/requirements.txt --region ${AWS_REGION}",
-                "aws s3 cp s3://${REPORTS_BUCKET}/dashboard/templates/index.html /opt/cloudmart-dashboard/templates/index.html --region ${AWS_REGION}",
-                "test -f /opt/cloudmart-dashboard/app.py",
-                "test -f /opt/cloudmart-dashboard/requirements.txt",
-                "test -f /opt/cloudmart-dashboard/templates/index.html",
-                "python3 -m pip install -r /opt/cloudmart-dashboard/requirements.txt",
-                "command -v gunicorn",
-                "systemctl daemon-reload",
-                "systemctl enable cloudmart-dashboard",
-                "systemctl restart cloudmart-dashboard",
-                "sleep 5",
-                "systemctl is-active --quiet cloudmart-dashboard",
-                "curl --fail --silent --show-error http://127.0.0.1:5000/health",
-                "echo CloudMart dashboard update completed successfully"
-              ]
-            }
+          set -e
+
+
+          echo "===================================================="
+
+          echo "Preparing CloudMart dashboard SSM deployment"
+
+          echo "===================================================="
+
+
+          # ========================================================
+          # CREATE EC2 DEPLOYMENT SCRIPT
+          # ========================================================
+
+          cat > /tmp/cloudmart-dashboard-update.sh <<EOF
+
+          set -e
+
+
+          echo "===================================================="
+
+          echo "CloudMart dashboard deployment started"
+
+          echo "===================================================="
+
+
+          # ====================================================
+          # WAIT FOR USERDATA COMPLETION
+          # ====================================================
+
+          echo "Waiting for EC2 UserData bootstrap to finish..."
+
+
+          for attempt in {1..60}; do
+
+            if [ -f /opt/cloudmart-dashboard/.userdata-complete ]; then
+
+              echo "UserData bootstrap completed."
+
+              break
+
+            fi
+
+
+            echo "UserData is still running."
+
+            echo "Attempt: \${attempt}/60"
+
+
+            sleep 10
+
+          done
+
+
+          # ====================================================
+          # VERIFY USERDATA COMPLETION
+          # ====================================================
+
+          if [ ! -f /opt/cloudmart-dashboard/.userdata-complete ]; then
+
+            echo "ERROR: UserData completion marker was not found."
+
+            echo "===================================================="
+
+            echo "Last 150 lines of UserData log"
+
+            echo "===================================================="
+
+
+            tail \
+              -n 150 \
+              /var/log/cloudmart-userdata.log \
+              || true
+
+
+            exit 1
+
+          fi
+
+
+          echo "UserData bootstrap is complete."
+
+
+          # ====================================================
+          # INSTALL / VERIFY OS PACKAGES
+          #
+          # This guarantees packages are installed even after
+          # stack recreation.
+          # ====================================================
+
+          echo "Installing/verifying required OS packages..."
+
+
+          dnf install -y \
+            python3 \
+            python3-pip \
+            nginx \
+            amazon-ssm-agent \
+            awscli \
+            curl
+
+
+          # ====================================================
+          # START SSM AGENT
+          # ====================================================
+
+          systemctl enable amazon-ssm-agent
+
+          systemctl restart amazon-ssm-agent || true
+
+
+          # ====================================================
+          # CREATE DASHBOARD DIRECTORIES
+          # ====================================================
+
+          mkdir -p /opt/cloudmart-dashboard
+
+          mkdir -p /opt/cloudmart-dashboard/templates
+
+
+          # ====================================================
+          # DOWNLOAD LATEST APP.PY
+          # ====================================================
+
+          echo "Downloading latest app.py..."
+
+
+          aws s3 cp \
+            "s3://$REPORTS_BUCKET/dashboard/app.py" \
+            /opt/cloudmart-dashboard/app.py \
+            --region "$AWS_REGION"
+
+
+          # ====================================================
+          # DOWNLOAD LATEST REQUIREMENTS
+          # ====================================================
+
+          echo "Downloading latest requirements.txt..."
+
+
+          aws s3 cp \
+            "s3://$REPORTS_BUCKET/dashboard/requirements.txt" \
+            /opt/cloudmart-dashboard/requirements.txt \
+            --region "$AWS_REGION"
+
+
+          # ====================================================
+          # DOWNLOAD LATEST HTML
+          # ====================================================
+
+          echo "Downloading latest index.html..."
+
+
+          aws s3 cp \
+            "s3://$REPORTS_BUCKET/dashboard/templates/index.html" \
+            /opt/cloudmart-dashboard/templates/index.html \
+            --region "$AWS_REGION"
+
+
+          # ====================================================
+          # VERIFY DOWNLOADED FILES
+          # ====================================================
+
+          echo "Verifying dashboard files..."
+
+
+          test -f /opt/cloudmart-dashboard/app.py
+
+          test -f /opt/cloudmart-dashboard/requirements.txt
+
+          test -f /opt/cloudmart-dashboard/templates/index.html
+
+
+          echo "Dashboard files verified successfully."
+
+
+          # ====================================================
+          # CREATE FLASK SECRET IF MISSING
+          # ====================================================
+
+          if [ ! -f /opt/cloudmart-dashboard/.flask_secret ]; then
+
+            echo "Creating Flask secret..."
+
+            python3 -c \
+              "import secrets; print(secrets.token_hex(32))" \
+              > /opt/cloudmart-dashboard/.flask_secret
+
+          fi
+
+
+          # ====================================================
+          # INSTALL PYTHON DEPENDENCIES
+          # ====================================================
+
+          echo "Installing/updating Python dependencies..."
+
+
+          python3 -m pip install \
+            -r /opt/cloudmart-dashboard/requirements.txt
+
+
+          # ====================================================
+          # VERIFY GUNICORN
+          # ====================================================
+
+          echo "Checking Gunicorn..."
+
+
+          command -v gunicorn
+
+          gunicorn --version
+
+
+          # ====================================================
+          # RECREATE SYSTEMD SERVICE
+          #
+          # This guarantees the service points to the latest
+          # application files.
+          # ====================================================
+
+          echo "Configuring CloudMart dashboard service..."
+
+
+          cat > /etc/systemd/system/cloudmart-dashboard.service <<'SERVICE'
+
+          [Unit]
+          Description=CloudMart Flask Dashboard
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User=root
+          WorkingDirectory=/opt/cloudmart-dashboard
+
+          Environment="ENVIRONMENT=dev"
+          Environment="AWS_REGION=ap-south-1"
+
+          ExecStart=/usr/local/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
+
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+
+          SERVICE
+
+
+          # ====================================================
+          # CONFIGURE NGINX
+          # ====================================================
+
+          echo "Configuring Nginx..."
+
+
+          cat > /etc/nginx/conf.d/cloudmart-dashboard.conf <<'NGINX'
+
+          server {
+
+              listen 80;
+
+              server_name _;
+
+
+              location / {
+
+                  proxy_pass http://127.0.0.1:5000;
+
+                  proxy_set_header Host $host;
+
+                  proxy_set_header X-Real-IP $remote_addr;
+
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+                  proxy_set_header X-Forwarded-Proto $scheme;
+
+              }
+
           }
+
+          NGINX
+
+
+          # ====================================================
+          # TEST NGINX CONFIGURATION
+          # ====================================================
+
+          nginx -t
+
+
+          # ====================================================
+          # RESTART DASHBOARD
+          # ====================================================
+
+          echo "Restarting CloudMart dashboard..."
+
+
+          systemctl daemon-reload
+
+          systemctl enable cloudmart-dashboard
+
+          systemctl restart cloudmart-dashboard
+
+
+          # ====================================================
+          # START NGINX
+          # ====================================================
+
+          echo "Restarting Nginx..."
+
+
+          systemctl enable nginx
+
+          systemctl restart nginx
+
+
+          # ====================================================
+          # HEALTH CHECK
+          # ====================================================
+
+          echo "Testing dashboard health..."
+
+
+          for attempt in {1..30}; do
+
+            if curl \
+              --fail \
+              --silent \
+              http://127.0.0.1:5000/health; then
+
+              echo
+
+              echo "Dashboard health check passed."
+
+              exit 0
+
+            fi
+
+
+            echo "Dashboard is restarting."
+
+            echo "Attempt: \${attempt}/30"
+
+
+            sleep 5
+
+          done
+
+
+          # ====================================================
+          # DIAGNOSTICS
+          # ====================================================
+
+          echo "===================================================="
+
+          echo "Dashboard health check failed."
+
+          echo "===================================================="
+
+
+          echo "CloudMart dashboard service status:"
+
+          systemctl status \
+            cloudmart-dashboard \
+            --no-pager \
+            || true
+
+
+          echo "CloudMart dashboard journal:"
+
+          journalctl \
+            -u cloudmart-dashboard \
+            --no-pager \
+            -n 100 \
+            || true
+
+
+          echo "UserData log:"
+
+          tail \
+            -n 150 \
+            /var/log/cloudmart-userdata.log \
+            || true
+
+
+          exit 1
+
           EOF
+
+
+          # ========================================================
+          # CONVERT SCRIPT INTO SSM COMMANDS
+          # ========================================================
+
+          COMMANDS=$(
+            jq -Rs -c \
+              'split("\n") | map(select(length > 0))' \
+              < /tmp/cloudmart-dashboard-update.sh
+          )
+
+
+          # ========================================================
+          # SEND SSM COMMAND
+          # ========================================================
 
           COMMAND_ID=$(
             aws ssm send-command \
-              --cli-input-json file:///tmp/cloudmart-dashboard-ssm.json \
+              --instance-ids "${DASHBOARD_INSTANCE_ID}" \
+              --document-name "AWS-RunShellScript" \
+              --comment "CloudMart dashboard deployment ${GITHUB_SHA}" \
+              --parameters "{\"commands\":${COMMANDS}}" \
               --region "${AWS_REGION}" \
               --query "Command.CommandId" \
               --output text
           )
 
-          echo "SSM command: ${COMMAND_ID}"
 
-          for attempt in $(seq 1 60); do
+          echo "SSM Command ID: ${COMMAND_ID}"
 
-            STATUS=$(
+
+          # ========================================================
+          # WAIT FOR SSM COMMAND
+          # ========================================================
+
+          for attempt in {1..60}; do
+
+            COMMAND_STATUS=$(
               aws ssm get-command-invocation \
                 --command-id "${COMMAND_ID}" \
-                --instance-id "${INSTANCE_ID}" \
+                --instance-id "${DASHBOARD_INSTANCE_ID}" \
                 --region "${AWS_REGION}" \
                 --query "Status" \
-                --output text 2>/dev/null || true
+                --output text \
+                2>/dev/null || true
             )
 
-            echo "SSM command status: ${STATUS:-Pending} (attempt ${attempt}/60)"
 
-            case "${STATUS}" in
+            echo "SSM command status: ${COMMAND_STATUS}"
+
+
+            case "${COMMAND_STATUS}" in
+
+
               Success)
+
+                echo "===================================================="
+
+                echo "Dashboard deployment completed successfully."
+
+                echo "===================================================="
+
+
                 aws ssm get-command-invocation \
                   --command-id "${COMMAND_ID}" \
-                  --instance-id "${INSTANCE_ID}" \
+                  --instance-id "${DASHBOARD_INSTANCE_ID}" \
                   --region "${AWS_REGION}" \
                   --query "StandardOutputContent" \
                   --output text
-                break
+
+
+                exit 0
+
                 ;;
+
+
               Failed|Cancelled|TimedOut|Cancelling)
-                echo "SSM dashboard deployment failed."
+
+                echo "===================================================="
+
+                echo "Dashboard deployment failed."
+
+                echo "===================================================="
+
+
                 aws ssm get-command-invocation \
                   --command-id "${COMMAND_ID}" \
-                  --instance-id "${INSTANCE_ID}" \
+                  --instance-id "${DASHBOARD_INSTANCE_ID}" \
                   --region "${AWS_REGION}" \
-                  --query "[Status,StandardOutputContent,StandardErrorContent]" \
-                  --output text
+                  --query "{Status:Status,StatusDetails:StatusDetails,Output:StandardOutputContent,Error:StandardErrorContent}" \
+                  --output json
+
+
                 exit 1
+
                 ;;
+
             esac
 
-            if [ "${attempt}" -eq 60 ]; then
-              echo "Timed out waiting for SSM dashboard deployment."
-              exit 1
-            fi
 
             sleep 10
 
           done
 
 
-      - name: Dashboard Stack Outputs
-        run: |
+          echo "Timed out waiting for dashboard SSM command."
 
-          aws cloudformation describe-stacks \
-            --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
-            --region "${AWS_REGION}" \
-            --query "Stacks[0].Outputs"
-
+          exit 1
