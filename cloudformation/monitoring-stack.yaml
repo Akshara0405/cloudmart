@@ -321,6 +321,118 @@ Resources:
 
 
   # ============================================================
+  # ORDER CANCELLATION SNS TOPIC
+  # ============================================================
+
+  OrderCancellationTopic:
+    Type: AWS::SNS::Topic
+
+    Properties:
+
+      TopicName:
+        !Sub CloudMart-${Environment}-OrderCancellations
+
+      DisplayName:
+        !Sub CloudMart ${Environment} Order Cancellations
+
+
+  # ============================================================
+  # ORDER CANCELLATION EMAIL SUBSCRIPTION
+  # ============================================================
+
+  OrderCancellationEmailSubscription:
+    Type: AWS::SNS::Subscription
+
+    Properties:
+
+      TopicArn:
+        !Ref OrderCancellationTopic
+
+      Protocol:
+        email
+
+      Endpoint:
+        !Ref AlertEmail
+
+
+  # ============================================================
+  # ORDER CANCELLED EVENTBRIDGE RULE
+  #
+  # OrderCancelled -> SNS
+  # ============================================================
+
+  OrderCancelledRule:
+    Type: AWS::Events::Rule
+
+    Properties:
+
+      Name:
+        !Sub CloudMart-${Environment}-OrderCancelledRule
+
+      Description:
+        !Sub CloudMart ${Environment} order cancelled notification rule
+
+      EventPattern:
+
+        source:
+          - cloudmart.order
+
+        detail-type:
+          - OrderCancelled
+
+      State: ENABLED
+
+      Targets:
+
+        - Arn:
+            !Ref OrderCancellationTopic
+
+          Id:
+            OrderCancellationSNSTarget
+
+
+  # ============================================================
+  # ORDER CANCELLATION SNS TOPIC POLICY
+  #
+  # Allows EventBridge to publish OrderCancelled events.
+  # ============================================================
+
+  OrderCancellationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+
+    Properties:
+
+      Topics:
+        - !Ref OrderCancellationTopic
+
+      PolicyDocument:
+
+        Version: '2012-10-17'
+
+        Statement:
+
+          - Sid: AllowOrderCancelledEventBridgePublish
+
+            Effect: Allow
+
+            Principal:
+              Service:
+                events.amazonaws.com
+
+            Action:
+              - sns:Publish
+
+            Resource:
+              !Ref OrderCancellationTopic
+
+            Condition:
+
+              ArnEquals:
+                aws:SourceArn:
+                  !GetAtt OrderCancelledRule.Arn
+
+
+  # ============================================================
   # CLOUDWATCH ALARM SNS TOPIC
   # ============================================================
 
@@ -635,6 +747,12 @@ Resources:
                     [
                       "cloudmart",
                       "LowStockEvents",
+                      "Environment",
+                      "${Environment}"
+                    ],
+                    [
+                      "cloudmart",
+                      "ordercancelled",
                       "Environment",
                       "${Environment}"
                     ]
@@ -972,6 +1090,51 @@ Resources:
         - !Ref AlarmNotificationTopic
 
 
+  # ============================================================
+  # ALARM 5
+  #
+  # Order cancellations >= 1 in a 5-minute period
+  # ============================================================
+
+  OrderCancelledAlarm:
+    Type: AWS::CloudWatch::Alarm
+
+    Properties:
+
+      AlarmName:
+        !Sub CloudMart-${Environment}-OrderCancelled
+
+      AlarmDescription:
+        !Sub CloudMart ${Environment} ordercancelled metric is greater than zero
+
+      Namespace: cloudmart
+
+      MetricName: ordercancelled
+
+      Dimensions:
+
+        - Name: Environment
+          Value:
+            !Ref Environment
+
+      Statistic: Sum
+
+      Period: 300
+
+      EvaluationPeriods: 1
+
+      DatapointsToAlarm: 1
+
+      Threshold: 0
+
+      ComparisonOperator: GreaterThanThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+
 # ============================================================
 # OUTPUTS
 # ============================================================
@@ -1075,6 +1238,40 @@ Outputs:
 
     Value:
       !Sub cloudmart-operations
+
+
+  # ============================================================
+  # ORDER CANCELLATION SNS TOPIC ARN
+  # ============================================================
+
+  OrderCancellationTopicArn:
+
+    Description:
+      SNS topic ARN for CloudMart order cancellation notifications
+
+    Value:
+      !Ref OrderCancellationTopic
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrderCancellationTopicArn
+
+
+  # ============================================================
+  # ORDER CANCELLED EVENTBRIDGE RULE ARN
+  # ============================================================
+
+  OrderCancelledRuleArn:
+
+    Description:
+      EventBridge rule ARN for cancelled orders
+
+    Value:
+      !GetAtt OrderCancelledRule.Arn
+
+    Export:
+      Name:
+        !Sub CloudMart-${Environment}-OrderCancelledRuleArn
 
 
   # ============================================================

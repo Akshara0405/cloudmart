@@ -1323,6 +1323,11 @@ def cancel_order(event):
             "restored_items": restored_items
         }))
 
+        # Publish one CloudWatch custom metric for every successful
+        # order cancellation. The metric is used by the monitoring
+        # stack to show cancellations and trigger the cancellation alarm.
+        publish_metric("ordercancelled")
+
         publish_order_event(
             "OrderCancelled",
             {
