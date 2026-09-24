@@ -41,17 +41,8 @@ jobs:
           pip install yamllint
 
       - name: Lint CloudFormation YAML files
-
         run: |
-
-          find cloudformation \
-
-            -type f \
-
-            \( -name "*.yaml" -o -name "*.yml" \) \
-
-            -print0 | xargs -0 yamllint -d relaxed
-
+          find cloudformation -type f \( -name "*.yaml" -o -name "*.yml" \) -print0 | xargs -0 yamllint -d relaxed
 
 
   # ============================================================
