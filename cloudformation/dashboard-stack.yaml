@@ -461,6 +461,10 @@ Resources:
             echo "CloudMart Dashboard UserData completed successfully"
             echo "===================================================="
 
+            # This marker lets the GitHub Actions SSM deployment wait until
+            # the initial EC2 bootstrap has completely finished.
+            touch /opt/cloudmart-dashboard/.userdata-complete
+
             systemctl status amazon-ssm-agent --no-pager || true
 
             systemctl status cloudmart-dashboard --no-pager || true
