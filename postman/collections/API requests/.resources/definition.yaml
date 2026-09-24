@@ -1,6 +1,8 @@
 $kind: collection
-name: API requests
 variables:
   - key: bearer_token_04mw
+    secret: true
+    disabled: false
+  - key: bearer_token_195p
     secret: true
     disabled: false

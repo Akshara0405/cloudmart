@@ -1,0 +1,17 @@
+$kind: http-request
+description: ""
+url: https://kz7qku7jaj.execute-api.ap-south-1.amazonaws.com/dev/orders/9
+method: PATCH
+headers:
+  Authorization: "{{bearer_token_195p}}"
+  Customer-Id: CUST001
+body:
+  type: json
+  content: "{\r
+
+    \    \"status\": \"CANCELLED\",\r
+
+    \    \"customer_id\": \"CUST001\"\r
+
+    }"
+order: 2580670399355923

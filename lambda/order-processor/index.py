@@ -1063,7 +1063,13 @@ def cancel_order(event):
         role, authenticated_customer_id = get_authorization_context(event)
 
         # ----------------------------------------------------
-        # VERIFY AUTHENTICATED CUSTOMER
+        # CUSTOMER ID COMES FROM AUTHORIZER
+        # ----------------------------------------------------
+        # For customer requests, do not require customer_id in the
+        # request body. The authorizer has already authenticated the
+        # customer and passed customer_id in requestContext.authorizer.
+        # Admin behavior remains unchanged and still uses customer_id
+        # from the request body.
         # ----------------------------------------------------
 
         if role == "customer":
@@ -1080,39 +1086,27 @@ def cancel_order(event):
                     }
                 )
 
-            if customer_id is None or str(customer_id).strip() == "":
+            customer_id = str(
+                authenticated_customer_id
+            ).strip()
 
-                return response(
-                    400,
-                    {
-                        "message": "customer_id is required"
-                    }
-                )
-
-            if str(customer_id) != str(authenticated_customer_id):
-
-                logger.warning(json.dumps({
-                    "level": "WARN",
-                    "service": "order-processor",
-                    "action": "order_cancellation_failed",
-                    "reason": "customer_identity_mismatch",
-                    "authenticated_customer_id": authenticated_customer_id,
-                    "requested_customer_id": customer_id,
-                    "order_id": order_id
-                }))
+            if not customer_id:
 
                 return response(
                     403,
                     {
                         "message": (
-                            "You are not allowed to cancel "
-                            "another customer's order"
+                            "Customer identity is missing "
+                            "from authorization context"
                         )
                     }
                 )
 
         # ----------------------------------------------------
         # VALIDATE CUSTOMER
+        # ----------------------------------------------------
+        # Admin behavior is unchanged: admin cancellation still
+        # requires customer_id in the request body.
         # ----------------------------------------------------
 
         if customer_id is None or str(customer_id).strip() == "":
@@ -1323,9 +1317,13 @@ def cancel_order(event):
             "restored_items": restored_items
         }))
 
-        # Publish one CloudWatch custom metric for every successful
-        # order cancellation. The metric is used by the monitoring
-        # stack to show cancellations and trigger the cancellation alarm.
+        # ----------------------------------------------------
+        # CLOUDWATCH METRIC
+        # ----------------------------------------------------
+        # Count only successful cancellations, after the database
+        # transaction has been committed.
+        # ----------------------------------------------------
+
         publish_metric("ordercancelled")
 
         publish_order_event(
