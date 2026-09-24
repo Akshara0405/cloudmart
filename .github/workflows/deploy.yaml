@@ -74,7 +74,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -168,7 +168,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -268,7 +268,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -382,7 +382,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -522,7 +522,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -698,7 +698,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -778,7 +778,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -838,7 +838,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -888,7 +888,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -1052,7 +1052,7 @@ jobs:
 
       - name: Configure AWS credentials
 
-        uses: aws-actions/configure-aws-credentials\@v4
+        uses: aws-actions/configure-aws-credentials@v4
 
         with:
 
@@ -2060,7 +2060,7 @@ jobs:
 
                   --region "${AWS_REGION}" \
 
-                  --query "{Status\:Status,StatusDetails\:StatusDetails,Output\:StandardOutputContent,Error\:StandardErrorContent}" \
+                  --query '{Status:Status,StatusDetails:StatusDetails,Output:StandardOutputContent,Error:StandardErrorContent}' \
 
                   --output json
 
