@@ -1135,6 +1135,141 @@ Resources:
         - !Ref AlarmNotificationTopic
 
 
+  # ============================================================
+  # ALARM 6
+  #
+  # LowStockEvents >= 1 in a 5-minute period
+  # ============================================================
+
+  LowStockEventsAlarm:
+    Type: AWS::CloudWatch::Alarm
+
+    Properties:
+
+      AlarmName:
+        !Sub CloudMart-${Environment}-LowStockEvents
+
+      AlarmDescription:
+        !Sub CloudMart ${Environment} LowStockEvents metric is greater than zero
+
+      Namespace: cloudmart
+
+      MetricName: LowStockEvents
+
+      Dimensions:
+
+        - Name: Environment
+          Value:
+            !Ref Environment
+
+      Statistic: Sum
+
+      Period: 300
+
+      EvaluationPeriods: 1
+
+      DatapointsToAlarm: 1
+
+      Threshold: 0
+
+      ComparisonOperator: GreaterThanThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+
+  # ============================================================
+  # ALARM 7
+  #
+  # RDS FreeStorageSpace < 5 GiB
+  # ============================================================
+
+  RDSFreeStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+
+    Properties:
+
+      AlarmName:
+        !Sub CloudMart-${Environment}-RDS-FreeStorage
+
+      AlarmDescription:
+        !Sub CloudMart ${Environment} RDS free storage space dropped below 5 GiB
+
+      Namespace: AWS/RDS
+
+      MetricName: FreeStorageSpace
+
+      Dimensions:
+
+        - Name: DBInstanceIdentifier
+          Value:
+            !Sub cloudmart-${Environment}-db
+
+      Statistic: Average
+
+      Period: 300
+
+      EvaluationPeriods: 1
+
+      DatapointsToAlarm: 1
+
+      Threshold: 5368709120
+
+      ComparisonOperator: LessThanThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+
+  # ============================================================
+  # ALARM 8
+  #
+  # Order Processor Lambda throttles >= 1
+  # ============================================================
+
+  LambdaThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+
+    Properties:
+
+      AlarmName:
+        !Sub CloudMart-${Environment}-LambdaThrottles
+
+      AlarmDescription:
+        !Sub CloudMart ${Environment} Order Processor Lambda throttles are greater than zero
+
+      Namespace: AWS/Lambda
+
+      MetricName: Throttles
+
+      Dimensions:
+
+        - Name: FunctionName
+          Value:
+            !Sub CloudMart-${Environment}-OrderProcessor
+
+      Statistic: Sum
+
+      Period: 300
+
+      EvaluationPeriods: 1
+
+      DatapointsToAlarm: 1
+
+      Threshold: 0
+
+      ComparisonOperator: GreaterThanThreshold
+
+      TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+
 # ============================================================
 # OUTPUTS
 # ============================================================
