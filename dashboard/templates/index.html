@@ -2,134 +2,538 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>CloudMart Operations Dashboard</title>
+    <title>CloudMart Control Center</title>
 
     <style>
+        :root {
+            --bg: #f4f7fb;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --text: #152033;
+            --muted: #718096;
+            --border: #e5eaf1;
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --success: #0f9f6e;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
 
         body {
-            font-family: Arial, sans-serif;
             margin: 0;
-            padding: 30px;
-            background: #f5f6f8;
-            color: #222;
+            background:
+                radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 28%),
+                var(--bg);
+            color: var(--text);
+            font-family:
+                Inter,
+                ui-sans-serif,
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
         }
 
-        h1 {
-            margin-bottom: 5px;
+        a {
+            color: inherit;
         }
 
-        h2 {
-            margin-top: 0;
-        }
-
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: white;
-            padding: 20px;
-            margin-bottom: 25px;
-            border-radius: 8px;
-            box-shadow:
-                0 2px 8px rgba(0, 0, 0, 0.08);
+        .login-page {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background:
+                radial-gradient(circle at 15% 20%, rgba(79, 70, 229, 0.18), transparent 30%),
+                radial-gradient(circle at 85% 80%, rgba(14, 165, 233, 0.12), transparent 28%),
+                #0f172a;
         }
 
         .login-card {
-            max-width: 450px;
-            margin: 80px auto;
+            width: min(440px, 100%);
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-mark {
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            border-radius: 14px;
+            color: white;
+            background: linear-gradient(135deg, #4f46e5, #06b6d4);
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3);
+        }
+
+        .brand-text {
+            font-size: 18px;
+        }
+
+        .login-card h1 {
+            margin: 30px 0 8px;
+            font-size: 30px;
+            letter-spacing: -0.04em;
+        }
+
+        .subtitle,
+        .muted {
+            color: var(--muted);
+        }
+
+        .login-form {
+            margin-top: 28px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
 
         input[type="password"] {
             width: 100%;
-            box-sizing: border-box;
-            padding: 12px;
-            margin: 10px 0 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            padding: 14px 15px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            outline: none;
+            font-size: 15px;
+            background: #fff;
         }
 
-        button {
-            padding: 10px 15px;
-            background: #222;
+        input[type="password"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        button,
+        .primary-button {
+            border: 0;
+            border-radius: 11px;
+            padding: 12px 16px;
             color: white;
-            border: none;
-            border-radius: 5px;
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            font-weight: 700;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        button:hover {
-            opacity: 0.9;
+        .full-button {
+            width: 100%;
+            margin-top: 14px;
         }
 
         .error {
-            color: #b00020;
-            margin-bottom: 15px;
+            margin-top: 15px;
+            padding: 11px 13px;
+            border-radius: 10px;
+            background: #fef2f2;
+            color: var(--danger);
+            font-size: 14px;
         }
 
-        .logout-link {
-            float: right;
-            padding: 8px 12px;
-            background: #222;
+        .app-shell {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            flex-shrink: 0;
+            background: #111827;
+            color: #dbe4f0;
+            padding: 24px 18px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar .brand {
             color: white;
-            text-decoration: none;
-            border-radius: 5px;
+            padding: 4px 8px 28px;
         }
 
-        .widgets {
+        .sidebar .brand-mark {
+            width: 40px;
+            height: 40px;
+        }
+
+        .nav-label {
+            color: #718096;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-weight: 800;
+            padding: 0 10px 10px;
+        }
+
+        .nav {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            padding: 12px 12px;
+            border-radius: 10px;
+            color: #b8c4d6;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .nav a:hover {
+            background: #1f2937;
+            color: white;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 14px 10px 4px;
+            border-top: 1px solid #263244;
+        }
+
+        .env-pill {
+            display: inline-flex;
+            padding: 5px 8px;
+            border-radius: 999px;
+            background: #1f2937;
+            color: #93c5fd;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .logout {
+            display: block;
+            margin-top: 12px;
+            color: #fca5a5;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .main {
+            width: 100%;
+            min-width: 0;
+            padding: 28px 32px 42px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
             gap: 20px;
             margin-bottom: 25px;
         }
 
-        .widget {
+        .eyebrow {
+            color: var(--primary);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: clamp(26px, 3vw, 38px);
+            letter-spacing: -0.045em;
+        }
+
+        .topbar p {
+            margin: 8px 0 0;
+            color: var(--muted);
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 9px 12px;
             background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow:
-                0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            box-shadow: 0 5px 16px rgba(15, 23, 42, 0.04);
         }
 
-        .clickable-widget {
-            display: block;
-            color: inherit;
-            text-decoration: none;
-            cursor: pointer;
-            transition:
-                transform 0.2s ease,
-                box-shadow 0.2s ease;
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
         }
 
-        .clickable-widget:hover {
-            transform: translateY(-3px);
-            box-shadow:
-                0 5px 15px rgba(0, 0, 0, 0.15);
+        .hero {
+            background:
+                linear-gradient(135deg, #111827 0%, #1e1b4b 58%, #312e81 100%);
+            color: white;
+            border-radius: 22px;
+            padding: 26px;
+            margin-bottom: 22px;
+            box-shadow: 0 18px 45px rgba(30, 27, 75, 0.2);
+            overflow: hidden;
+            position: relative;
         }
 
-        .widget-title {
-            color: #666;
-            margin-bottom: 10px;
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 250px;
+            height: 250px;
+            right: -90px;
+            top: -110px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
         }
 
-        .widget-value {
-            font-size: 32px;
-            font-weight: bold;
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 750px;
         }
 
-        .widget-action {
-            margin-top: 8px;
-            color: #777;
+        .hero h2 {
+            margin: 0 0 7px;
+            font-size: 24px;
+            letter-spacing: -0.03em;
+        }
+
+        .hero p {
+            margin: 0;
+            color: #c7d2fe;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 15px;
+            margin-bottom: 22px;
+        }
+
+        .metric {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 17px;
+            padding: 19px;
+            box-shadow: var(--shadow);
+            min-width: 0;
+        }
+
+        .metric-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .metric-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .metric-icon {
+            width: 32px;
+            height: 32px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: var(--primary);
+            font-weight: 900;
+        }
+
+        .metric-value {
+            font-size: 27px;
+            font-weight: 850;
+            letter-spacing: -0.04em;
+            margin-top: 13px;
+        }
+
+        .metric-note {
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .layout-two {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+            gap: 20px;
+            margin-bottom: 22px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 21px;
+            box-shadow: var(--shadow);
+            margin-bottom: 22px;
+        }
+
+        .layout-two .card {
+            margin-bottom: 0;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 17px;
+            letter-spacing: -0.02em;
+        }
+
+        .card-header p {
+            margin: 5px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .revenue-chart {
+            height: 205px;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            padding: 12px 4px 0;
+        }
+
+        .bar-column {
+            flex: 1;
+            height: 100%;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .bar-value {
+            font-size: 10px;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .bar {
+            width: min(34px, 70%);
+            min-height: 5px;
+            border-radius: 8px 8px 3px 3px;
+            background: linear-gradient(180deg, #6366f1, #4f46e5);
+        }
+
+        .bar-label {
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .mini-list {
+            display: grid;
+            gap: 11px;
+        }
+
+        .mini-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 15px;
+            align-items: center;
+            padding-bottom: 11px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mini-row:last-child {
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .mini-title {
+            font-weight: 750;
             font-size: 13px;
+        }
+
+        .mini-subtitle {
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .mini-number {
+            text-align: right;
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .stock-warning {
+            color: var(--danger);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 15px;
+            margin-bottom: 22px;
+        }
+
+        .small-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 17px;
+            box-shadow: var(--shadow);
+        }
+
+        .small-card .label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .small-card .number {
+            font-size: 24px;
+            font-weight: 850;
+            margin-top: 8px;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
         }
 
         table {
@@ -139,670 +543,958 @@
 
         th,
         td {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--border);
             text-align: left;
+            white-space: nowrap;
+            font-size: 13px;
         }
 
         th {
-            background: #f0f1f3;
+            color: var(--muted);
+            background: var(--surface-soft);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
-        .low-stock {
-            font-weight: bold;
+        tr:last-child td {
+            border-bottom: 0;
         }
 
-        .report-link {
-            display: inline-block;
-            padding: 10px 15px;
-            background: #222;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
+        tbody tr:hover {
+            background: #fafbff;
         }
 
-        .role {
-            color: #666;
-            margin-bottom: 20px;
+        .customer-name {
+            font-weight: 800;
         }
 
-        .orders-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .orders-header h2 {
-            margin-bottom: 5px;
-        }
-
-        .orders-description {
-            color: #666;
-            margin: 0;
-        }
-
-        .show-all-link {
-            display: inline-block;
-            padding: 8px 12px;
-            background: #222;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            white-space: nowrap;
-        }
-
-        .show-all-link:hover {
-            opacity: 0.9;
-        }
-
-        .table-container {
-            width: 100%;
-            overflow-x: auto;
+        .customer-email {
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 3px;
         }
 
         .status-badge {
-            display: inline-block;
+            display: inline-flex;
             padding: 5px 9px;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: bold;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: capitalize;
         }
 
         .status-confirmed {
-            background: #e8f5e9;
-            color: #2e7d32;
+            background: #ecfdf5;
+            color: #047857;
         }
 
         .status-failed {
-            background: #ffebee;
-            color: #c62828;
+            background: #fef2f2;
+            color: #b91c1c;
         }
 
         .status-pending {
-            background: #fff8e1;
-            color: #ef6c00;
+            background: #fffbeb;
+            color: #b45309;
+        }
+
+        .status-cancelled {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .low-stock {
+            color: var(--danger);
+            font-weight: 850;
+        }
+
+        .healthy-stock {
+            color: var(--success);
+            font-weight: 750;
+        }
+
+        .filter-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .filter-link {
+            text-decoration: none;
+            padding: 7px 10px;
+            border-radius: 9px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .filter-link:hover,
+        .filter-link.active {
+            color: var(--primary);
+            border-color: #c7d2fe;
+            background: #eef2ff;
+        }
+
+        .report-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--surface-soft);
+        }
+
+        .report-name {
+            font-weight: 800;
+        }
+
+        .report-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 5px;
         }
 
         .empty-state {
             padding: 30px;
             text-align: center;
-            color: #666;
-            background: #f8f8f8;
-            border-radius: 5px;
+            color: var(--muted);
+            background: var(--surface-soft);
+            border-radius: 12px;
         }
 
-        @media (max-width: 900px) {
+        .footer-note {
+            text-align: center;
+            color: var(--muted);
+            font-size: 11px;
+            padding: 3px 0 15px;
+        }
 
-            .widgets {
+        @media (max-width: 1150px) {
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .layout-two {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 850px) {
+            .sidebar {
+                width: 75px;
+                padding: 18px 10px;
+            }
+
+            .sidebar .brand-text,
+            .nav-label,
+            .nav a span,
+            .sidebar-footer .env-pill,
+            .sidebar-footer .muted {
+                display: none;
+            }
+
+            .sidebar .brand {
+                justify-content: center;
+                padding-left: 0;
+                padding-right: 0;
+            }
+
+            .nav a {
+                text-align: center;
+                font-size: 18px;
+            }
+
+            .logout {
+                text-align: center;
+                font-size: 0;
+            }
+
+            .logout::after {
+                content: "↪";
+                font-size: 20px;
+            }
+
+            .main {
+                padding: 22px 18px 35px;
+            }
+
+            .section-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .metrics-grid {
                 grid-template-columns: 1fr;
             }
 
-            .orders-header {
+            .topbar {
+                flex-direction: column;
+            }
+
+            .hero {
+                padding: 21px;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .report-box {
                 flex-direction: column;
                 align-items: flex-start;
             }
 
-            table {
-                display: block;
-                overflow-x: auto;
+            .sidebar {
+                display: none;
             }
 
-            body {
-                padding: 15px;
+            .main {
+                padding: 18px 13px 28px;
             }
         }
-
     </style>
-
 </head>
-
 
 <body>
 
-
 {% if not authenticated %}
 
-    <!-- ======================================================
-         LOGIN
-         ====================================================== -->
+    <div class="login-page">
+        <div class="login-card">
 
-    <div class="card login-card">
-
-        <h1>CloudMart Admin</h1>
-
-        <div class="subtitle">
-            Admin authentication is required
-            to access the dashboard.
-        </div>
-
-        {% if login_error %}
-
-            <div class="error">
-                {{ login_error }}
+            <div class="brand">
+                <div class="brand-mark">CM</div>
+                <div class="brand-text">CloudMart Control Center</div>
             </div>
 
-        {% endif %}
+            <h1>Welcome back</h1>
 
+            <div class="subtitle">
+                Secure administrator access to your CloudMart operations,
+                customers, inventory and revenue.
+            </div>
 
-        <form
-            method="POST"
-            action="{{ url_for('login') }}"
-        >
+            {% if login_error %}
+                <div class="error">
+                    {{ login_error }}
+                </div>
+            {% endif %}
 
-            <label for="token">
-                Admin Token
-            </label>
-
-            <input
-                type="password"
-                id="token"
-                name="token"
-                placeholder="Enter admin token"
-                required
+            <form
+                class="login-form"
+                method="POST"
+                action="{{ url_for('login') }}"
             >
+                <label for="token">Admin Token</label>
 
-            <button type="submit">
-                Login
-            </button>
+                <input
+                    type="password"
+                    id="token"
+                    name="token"
+                    placeholder="Enter admin token"
+                    required
+                >
 
-        </form>
+                <button class="full-button" type="submit">
+                    Enter Control Center
+                </button>
+            </form>
 
+        </div>
     </div>
-
 
 {% else %}
 
+    <div class="app-shell">
 
-    <!-- ======================================================
-         LOGOUT
-         ====================================================== -->
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
 
-    <a
-        class="logout-link"
-        href="{{ url_for('logout') }}"
-    >
-        Logout
-    </a>
-
-
-    <!-- ======================================================
-         DASHBOARD HEADER
-         ====================================================== -->
-
-    <h1>
-        CloudMart Operations Dashboard
-    </h1>
-
-    <div class="subtitle">
-        Environment:
-        {{ config.get("ENVIRONMENT", "dev") }}
-    </div>
-
-    <div class="role">
-        Role:
-        {{ session.get("role", "admin") }}
-    </div>
-
-
-    <!-- ======================================================
-         ORDER WIDGETS
-         ====================================================== -->
-
-    <div class="widgets">
-
-
-        <!-- TOTAL ORDERS -->
-
-        <a
-            href="{{ url_for('dashboard') }}#orders"
-            class="clickable-widget"
-        >
-
-            <div class="widget">
-
-                <div class="widget-title">
-                    Total Orders
-                </div>
-
-                <div class="widget-value">
-                    {{ order_counts.total_orders }}
-                </div>
-
-                <div class="widget-action">
-                    Click to view all orders
-                </div>
-
+            <div class="brand">
+                <div class="brand-mark">CM</div>
+                <div class="brand-text">CloudMart</div>
             </div>
 
-        </a>
-
-
-        <!-- CONFIRMED ORDERS -->
-
-        <a
-            href="{{ url_for('dashboard', status='confirmed') }}#orders"
-            class="clickable-widget"
-        >
-
-            <div class="widget">
-
-                <div class="widget-title">
-                    Confirmed Orders
-                </div>
-
-                <div class="widget-value">
-                    {{ order_counts.confirmed_orders }}
-                </div>
-
-                <div class="widget-action">
-                    Click to view confirmed orders
-                </div>
-
-            </div>
-
-        </a>
-
-
-        <!-- FAILED ORDERS -->
-
-        <a
-            href="{{ url_for('dashboard', status='failed') }}#orders"
-            class="clickable-widget"
-        >
-
-            <div class="widget">
-
-                <div class="widget-title">
-                    Failed Orders
-                </div>
-
-                <div class="widget-value">
-                    {{ order_counts.failed_orders }}
-                </div>
-
-                <div class="widget-action">
-                    Click to view failed orders
-                </div>
-
-            </div>
-
-        </a>
-
-
-    </div>
-
-
-    <!-- ======================================================
-         REPORT
-         ====================================================== -->
-
-    <div class="card">
-
-        <h2>
-            Latest Daily Report
-        </h2>
-
-
-        {% if latest_report %}
-
-            <p>
-                {{ latest_report.name }}
-            </p>
-
-            <p>
-                Last modified:
-                {{ latest_report.last_modified }}
-            </p>
-
-            <a
-                class="report-link"
-                href="{{ latest_report.url }}"
-                target="_blank"
-            >
-                Open Latest Report
-            </a>
-
-        {% else %}
-
-            <p>
-                No report available.
-            </p>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ======================================================
-         PRODUCT INVENTORY
-         ====================================================== -->
-
-    <div class="card">
-
-        <h2>
-            Current Product Inventory
-        </h2>
-
-
-        <div class="table-container">
-
-            <table>
-
-                <thead>
-
-                    <tr>
-
-                        <th>ID</th>
-
-                        <th>Product</th>
-
-                        <th>Category</th>
-
-                        <th>Price</th>
-
-                        <th>Stock</th>
-
-                    </tr>
-
-                </thead>
-
-
-                <tbody>
-
-                    {% for product in products %}
-
-                    <tr>
-
-                        <td>
-                            {{ product.id }}
-                        </td>
-
-                        <td>
-                            {{ product.name }}
-                        </td>
-
-                        <td>
-                            {{ product.category }}
-                        </td>
-
-                        <td>
-                            ₹{{ product.price }}
-                        </td>
-
-                        <td
-                            class="
-                            {% if product.stock_count <= 5 %}
-                                low-stock
-                            {% endif %}
-                            "
-                        >
-                            {{ product.stock_count }}
-                        </td>
-
-                    </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
-
-    <!-- ======================================================
-         RECENT / FILTERED ORDERS
-         ====================================================== -->
-
-    <div
-        class="card"
-        id="orders"
-    >
-
-        <div class="orders-header">
-
-            <div>
-
-                {% if selected_status == "confirmed" %}
-
-                    <h2>
-                        Confirmed Orders
-                    </h2>
-
-                    <p class="orders-description">
-                        Showing confirmed orders only.
-                    </p>
-
-                {% elif selected_status == "failed" %}
-
-                    <h2>
-                        Failed Orders
-                    </h2>
-
-                    <p class="orders-description">
-                        Showing failed orders only.
-                    </p>
-
-                {% elif selected_status == "pending" %}
-
-                    <h2>
-                        Pending Orders
-                    </h2>
-
-                    <p class="orders-description">
-                        Showing pending orders only.
-                    </p>
-
-                {% else %}
-
-                    <h2>
-                        Recent Orders
-                    </h2>
-
-                    <p class="orders-description">
-                        Latest CloudMart orders.
-                    </p>
-
-                {% endif %}
-
-            </div>
-
-
-            {% if selected_status %}
-
-                <a
-                    href="{{ url_for('dashboard') }}#orders"
-                    class="show-all-link"
-                >
-                    Show All Orders
+            <div class="nav-label">Operations</div>
+
+            <nav class="nav">
+                <a href="{{ url_for('dashboard') }}">
+                    ◈ <span>Overview</span>
                 </a>
 
-            {% endif %}
+                <a href="#customers">
+                    ◎ <span>Customers</span>
+                </a>
 
-        </div>
+                <a href="#inventory">
+                    ▦ <span>Inventory</span>
+                </a>
+
+                <a href="#orders">
+                    ◫ <span>Orders</span>
+                </a>
+
+                <a href="#reports">
+                    ▤ <span>Reports</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <span class="env-pill">{{ environment }}</span>
+
+                <div class="muted" style="margin-top:10px;font-size:11px;">
+                    Signed in as {{ session.get("role", "admin") }}
+                </div>
+
+                <a class="logout" href="{{ url_for('logout') }}">
+                    Logout
+                </a>
+            </div>
+
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main">
+
+            <div class="topbar">
+
+                <div>
+                    <div class="eyebrow">CloudMart Operations</div>
+
+                    <h1>Control Center</h1>
+
+                    <p>
+                        A live view of sales, customers, orders and inventory.
+                    </p>
+                </div>
+
+                <div class="status-chip">
+                    <span class="status-dot"></span>
+                    System connected · {{ environment }}
+                </div>
+
+            </div>
 
 
-        {% if recent_orders %}
+            <!-- HERO -->
+            <section class="hero">
 
-            <div class="table-container">
+                <div class="hero-content">
 
-                <table>
+                    <h2>
+                        Good day, Admin. Here is your business snapshot.
+                    </h2>
 
-                    <thead>
+                    <p>
+                        Confirmed revenue, customer activity and stock
+                        information are calculated directly from CloudMart MySQL.
+                    </p>
 
-                        <tr>
+                </div>
 
-                            <th>Order ID</th>
-
-                            <th>Customer</th>
-
-                            <th>Status</th>
-
-                            <th>Product</th>
-
-                            <th>Quantity</th>
-
-                            <th>Price</th>
-
-                            <th>Created</th>
-
-                        </tr>
-
-                    </thead>
+            </section>
 
 
-                    <tbody>
+            <!-- BUSINESS METRICS -->
+            <section class="metrics-grid">
 
-                        {% for order in recent_orders %}
+                <div class="metric">
+                    <div class="metric-top">
+                        <div class="metric-label">Total Revenue</div>
+                        <div class="metric-icon">₹</div>
+                    </div>
 
-                        <tr>
+                    <div class="metric-value">
+                        ₹{{ "{:,.2f}".format(business_metrics.total_revenue or 0) }}
+                    </div>
 
-                            <td>
-                                {{ order.order_id }}
-                            </td>
+                    <div class="metric-note">
+                        Confirmed orders only
+                    </div>
+                </div>
 
-                            <td>
-                                {{ order.customer_id }}
-                            </td>
 
-                            <td>
+                <div class="metric">
+                    <div class="metric-top">
+                        <div class="metric-label">Customers</div>
+                        <div class="metric-icon">◎</div>
+                    </div>
 
-                                {% if order.status %}
+                    <div class="metric-value">
+                        {{ business_metrics.active_customers }}
+                    </div>
 
-                                    <span
-                                        class="
-                                        status-badge
-                                        status-{{ order.status|lower|trim }}
-                                        "
-                                    >
-                                        {{ order.status }}
-                                    </span>
+                    <div class="metric-note">
+                        Active customer accounts
+                    </div>
+                </div>
 
-                                {% else %}
 
-                                    -
+                <div class="metric">
+                    <div class="metric-top">
+                        <div class="metric-label">Average Order</div>
+                        <div class="metric-icon">↗</div>
+                    </div>
 
-                                {% endif %}
+                    <div class="metric-value">
+                        ₹{{ "{:,.2f}".format(business_metrics.average_order_value or 0) }}
+                    </div>
 
-                            </td>
+                    <div class="metric-note">
+                        Confirmed revenue ÷ confirmed orders
+                    </div>
+                </div>
 
-                            <td>
 
-                                {% if order.product_name %}
+                <div class="metric">
+                    <div class="metric-top">
+                        <div class="metric-label">Low Stock</div>
+                        <div class="metric-icon">!</div>
+                    </div>
 
-                                    {{ order.product_name }}
+                    <div class="metric-value">
+                        {{ business_metrics.low_stock_products }}
+                    </div>
 
-                                {% else %}
+                    <div class="metric-note">
+                        Products at 5 units or below
+                    </div>
+                </div>
 
-                                    -
+            </section>
 
-                                {% endif %}
 
-                            </td>
+            <!-- REVENUE + TOP PRODUCTS -->
+            <section class="layout-two">
 
-                            <td>
+                <div class="card">
 
-                                {% if order.quantity is not none %}
+                    <div class="card-header">
+                        <div>
+                            <h2>Revenue Pulse</h2>
+                            <p>Confirmed revenue over the last 7 calendar days</p>
+                        </div>
+                    </div>
 
-                                    {{ order.quantity }}
+                    {% set max_revenue = 1 %}
 
-                                {% else %}
+                    {% for item in daily_revenue %}
+                        {% if item.revenue > max_revenue %}
+                            {% set max_revenue = item.revenue %}
+                        {% endif %}
+                    {% endfor %}
 
-                                    -
+                    <div class="revenue-chart">
 
-                                {% endif %}
+                        {% for item in daily_revenue %}
 
-                            </td>
+                            {% set height = (item.revenue / max_revenue * 150) if max_revenue else 5 %}
 
-                            <td>
+                            <div class="bar-column">
 
-                                {% if order.price is not none %}
+                                <div class="bar-value">
+                                    ₹{{ "{:,.0f}".format(item.revenue) }}
+                                </div>
 
-                                    ₹{{ "%.2f"|format(order.price) }}
+                                <div
+                                    class="bar"
+                                    style="height: {{ [height, 5]|max }}px;"
+                                    title="{{ item.label }} — ₹{{ '{:,.2f}'.format(item.revenue) }}"
+                                ></div>
 
-                                {% else %}
+                                <div class="bar-label">
+                                    {{ item.label }}
+                                </div>
 
-                                    -
-
-                                {% endif %}
-
-                            </td>
-
-                            <td>
-
-                                {% if order.created_at %}
-
-                                    {{ order.created_at }}
-
-                                {% else %}
-
-                                    -
-
-                                {% endif %}
-
-                            </td>
-
-                        </tr>
+                            </div>
 
                         {% endfor %}
 
-                    </tbody>
+                    </div>
 
-                </table>
-
-            </div>
+                </div>
 
 
-        {% else %}
+                <div class="card">
+
+                    <div class="card-header">
+                        <div>
+                            <h2>Top Products</h2>
+                            <p>Products generating the most confirmed sales</p>
+                        </div>
+                    </div>
+
+                    <div class="mini-list">
+
+                        {% if top_products %}
+
+                            {% for product in top_products %}
+
+                                <div class="mini-row">
+
+                                    <div>
+                                        <div class="mini-title">
+                                            {{ product.name }}
+                                        </div>
+
+                                        <div class="mini-subtitle">
+                                            {{ product.category or "Uncategorized" }}
+                                            ·
+                                            {{ product.units_sold }} units
+                                        </div>
+                                    </div>
+
+                                    <div class="mini-number">
+                                        ₹{{ "{:,.0f}".format(product.revenue or 0) }}
+                                    </div>
+
+                                </div>
+
+                            {% endfor %}
+
+                        {% else %}
+
+                            <div class="empty-state">
+                                No confirmed sales yet.
+                            </div>
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            </section>
 
 
-            <div class="empty-state">
+            <!-- QUICK STATS -->
+            <section class="section-grid">
 
-                {% if selected_status == "confirmed" %}
+                <div class="small-card">
+                    <div class="label">Total Orders</div>
+                    <div class="number">{{ order_counts.total_orders }}</div>
+                </div>
 
-                    No confirmed orders found.
+                <div class="small-card">
+                    <div class="label">Units Sold</div>
+                    <div class="number">{{ business_metrics.units_sold }}</div>
+                </div>
 
-                {% elif selected_status == "failed" %}
+                <div class="small-card">
+                    <div class="label">Products Listed</div>
+                    <div class="number">{{ business_metrics.total_products }}</div>
+                </div>
 
-                    No failed orders found.
+            </section>
 
-                {% elif selected_status == "pending" %}
 
-                    No pending orders found.
+            <!-- CUSTOMER DETAILS -->
+            <section class="card" id="customers">
+
+                <div class="card-header">
+
+                    <div>
+                        <h2>Customer Directory</h2>
+
+                        <p>
+                            Customer contact details, order count and confirmed spend.
+                        </p>
+                    </div>
+
+                    <div class="status-chip">
+                        {{ business_metrics.active_customers }} active
+                    </div>
+
+                </div>
+
+                {% if customers %}
+
+                    <div class="table-container">
+
+                        <table>
+
+                            <thead>
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Contact</th>
+                                    <th>Phone</th>
+                                    <th>Location</th>
+                                    <th>Orders</th>
+                                    <th>Total Spent</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                {% for customer in customers %}
+
+                                    <tr>
+
+                                        <td>
+                                            <div class="customer-name">
+                                                {{ customer.name }}
+                                            </div>
+
+                                            <div class="customer-email">
+                                                {{ customer.customer_id }}
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            {{ customer.email }}
+                                        </td>
+
+                                        <td>
+                                            {{ customer.phone or "—" }}
+                                        </td>
+
+                                        <td>
+                                            {{ customer.address or "—" }}
+                                        </td>
+
+                                        <td>
+                                            {{ customer.order_count }}
+                                        </td>
+
+                                        <td>
+                                            <strong>
+                                                ₹{{ "{:,.2f}".format(customer.total_spent or 0) }}
+                                            </strong>
+                                        </td>
+
+                                    </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
 
                 {% else %}
 
-                    No orders found.
+                    <div class="empty-state">
+                        No customers found.
+                    </div>
 
                 {% endif %}
 
+            </section>
+
+
+            <!-- INVENTORY -->
+            <section class="card" id="inventory">
+
+                <div class="card-header">
+
+                    <div>
+                        <h2>Inventory Command</h2>
+
+                        <p>
+                            Current stock levels with automatic low-stock highlighting.
+                        </p>
+                    </div>
+
+                    <div class="status-chip">
+                        {{ business_metrics.total_products }} products
+                    </div>
+
+                </div>
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>State</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for product in products %}
+
+                                <tr>
+
+                                    <td>#{{ product.id }}</td>
+
+                                    <td>
+                                        <strong>{{ product.name }}</strong>
+                                    </td>
+
+                                    <td>
+                                        {{ product.category or "—" }}
+                                    </td>
+
+                                    <td>
+                                        ₹{{ "{:,.2f}".format(product.price or 0) }}
+                                    </td>
+
+                                    <td
+                                        class="{% if product.stock_count <= 5 %}low-stock{% else %}healthy-stock{% endif %}"
+                                    >
+                                        {{ product.stock_count }}
+                                    </td>
+
+                                    <td>
+
+                                        {% if product.stock_count <= 5 %}
+                                            <span class="status-badge status-failed">
+                                                Reorder soon
+                                            </span>
+                                        {% else %}
+                                            <span class="status-badge status-confirmed">
+                                                Healthy
+                                            </span>
+                                        {% endif %}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+
+            <!-- ORDERS -->
+            <section class="card" id="orders">
+
+                <div class="card-header">
+
+                    <div>
+                        {% if selected_status %}
+                            <h2>{{ selected_status|capitalize }} Orders</h2>
+                            <p>Filtered order activity.</p>
+                        {% else %}
+                            <h2>Recent Orders</h2>
+                            <p>Latest CloudMart order activity.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="filter-links">
+
+                        <a
+                            class="filter-link {% if not selected_status %}active{% endif %}"
+                            href="{{ url_for('dashboard') }}#orders"
+                        >
+                            All
+                        </a>
+
+                        <a
+                            class="filter-link {% if selected_status == 'confirmed' %}active{% endif %}"
+                            href="{{ url_for('dashboard', status='confirmed') }}#orders"
+                        >
+                            Confirmed
+                        </a>
+
+                        <a
+                            class="filter-link {% if selected_status == 'pending' %}active{% endif %}"
+                            href="{{ url_for('dashboard', status='pending') }}#orders"
+                        >
+                            Pending
+                        </a>
+
+                        <a
+                            class="filter-link {% if selected_status == 'failed' %}active{% endif %}"
+                            href="{{ url_for('dashboard', status='failed') }}#orders"
+                        >
+                            Failed
+                        </a>
+
+                        <a
+                            class="filter-link {% if selected_status == 'cancelled' %}active{% endif %}"
+                            href="{{ url_for('dashboard', status='cancelled') }}#orders"
+                        >
+                            Cancelled
+                        </a>
+
+                    </div>
+
+                </div>
+
+                {% if recent_orders %}
+
+                    <div class="table-container">
+
+                        <table>
+
+                            <thead>
+                                <tr>
+                                    <th>Order</th>
+                                    <th>Customer</th>
+                                    <th>Status</th>
+                                    <th>Product</th>
+                                    <th>Qty</th>
+                                    <th>Unit Price</th>
+                                    <th>Order Value</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                {% for order in recent_orders %}
+
+                                    <tr>
+
+                                        <td>
+                                            <strong>#{{ order.order_id }}</strong>
+                                        </td>
+
+                                        <td>
+                                            <div class="customer-name">
+                                                {{ order.customer_name or order.customer_id }}
+                                            </div>
+
+                                            {% if order.customer_email %}
+                                                <div class="customer-email">
+                                                    {{ order.customer_email }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            <span
+                                                class="
+                                                    status-badge
+                                                    status-{{ order.status|lower|trim }}
+                                                "
+                                            >
+                                                {{ order.status }}
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            {{ order.product_name or "—" }}
+                                        </td>
+
+                                        <td>
+                                            {{ order.quantity or "—" }}
+                                        </td>
+
+                                        <td>
+                                            {% if order.price is not none %}
+                                                ₹{{ "{:,.2f}".format(order.price) }}
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            {% if order.line_total is not none %}
+                                                <strong>
+                                                    ₹{{ "{:,.2f}".format(order.line_total) }}
+                                                </strong>
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            {{ order.created_at or "—" }}
+                                        </td>
+
+                                    </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                {% else %}
+
+                    <div class="empty-state">
+                        No orders found for this filter.
+                    </div>
+
+                {% endif %}
+
+            </section>
+
+
+            <!-- REPORTS -->
+            <section class="card" id="reports">
+
+                <div class="card-header">
+                    <div>
+                        <h2>Daily Reporting</h2>
+                        <p>
+                            Latest CSV report generated by the CloudMart reporting workflow.
+                        </p>
+                    </div>
+                </div>
+
+                {% if latest_report %}
+
+                    <div class="report-box">
+
+                        <div>
+                            <div class="report-name">
+                                {{ latest_report.name }}
+                            </div>
+
+                            <div class="report-meta">
+                                Last modified:
+                                {{ latest_report.last_modified }}
+                                · Link expires in 1 hour
+                            </div>
+                        </div>
+
+                        <a
+                            class="primary-button"
+                            href="{{ latest_report.url }}"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            Open Report
+                        </a>
+
+                    </div>
+
+                {% else %}
+
+                    <div class="empty-state">
+                        No daily report is available yet.
+                    </div>
+
+                {% endif %}
+
+            </section>
+
+
+            <div class="footer-note">
+                CloudMart · {{ environment }} ·
+                Dashboard generated {{ generated_at }}
             </div>
 
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- ======================================================
-         GENERATED TIME
-         ====================================================== -->
-
-    <div class="subtitle">
-
-        Generated:
-        {{ generated_at }}
+        </main>
 
     </div>
-
 
 {% endif %}
 
-
 </body>
-
 </html>
