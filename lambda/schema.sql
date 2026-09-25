@@ -1,88 +1,48 @@
--- ============================================================
--- CloudMart Database Schema
--- ============================================================
-
 CREATE DATABASE IF NOT EXISTS cloudmart;
-
 USE cloudmart;
-
-
--- ============================================================
--- CATEGORIES
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS categories (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL UNIQUE,
     description VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMP NULL
 );
 
-
--- ============================================================
--- PRODUCTS
--- ============================================================
+CREATE TABLE IF NOT EXISTS customers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    phone VARCHAR(20),
+    address VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMP NULL
+);
 
 CREATE TABLE IF NOT EXISTS products (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10,2) NOT NULL,
-    category_id INT,
+    category VARCHAR(100),
     stock_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
     deleted_at TIMESTAMP NULL,
-    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-
-    INDEX idx_products_category_id (category_id),
-    INDEX idx_products_name (name),
-    INDEX idx_products_created_at (created_at),
-
-    CONSTRAINT fk_products_category
-        FOREIGN KEY (category_id)
-        REFERENCES categories(id)
+    INDEX idx_products_category (category)
 );
-
-
--- ============================================================
--- CUSTOMERS
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS customers (
-    id VARCHAR(100) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    phone VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL,
-    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-
-    INDEX idx_customers_email (email)
-);
-
-
--- ============================================================
--- ORDER STATUS
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS order_status (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    status VARCHAR(100) NOT NULL UNIQUE,
+    status_name VARCHAR(50) NOT NULL UNIQUE,
     description VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMP NULL
 );
-
-
--- ============================================================
--- ORDERS
---
--- One row represents one order.
--- Products are stored in order_items.
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS orders (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -90,25 +50,12 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(100) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
     INDEX idx_orders_customer_id (customer_id),
     INDEX idx_orders_status (status),
-    INDEX idx_orders_created_at (created_at),
-
-    CONSTRAINT fk_orders_customer
-        FOREIGN KEY (customer_id)
-        REFERENCES customers(id)
+    INDEX idx_orders_created_at (created_at)
 );
-
-
--- ============================================================
--- ORDER ITEMS
---
--- One order can contain multiple products.
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS order_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -118,160 +65,100 @@ CREATE TABLE IF NOT EXISTS order_items (
     price DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
-    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
     INDEX idx_order_items_order_id (order_id),
-    INDEX idx_order_items_product_id (product_id),
-
-    CONSTRAINT fk_order_items_order
-        FOREIGN KEY (order_id)
-        REFERENCES orders(id),
-
-    CONSTRAINT fk_order_items_product
-        FOREIGN KEY (product_id)
-        REFERENCES products(id)
+    INDEX idx_order_items_product_id (product_id)
 );
-
-
--- ============================================================
--- TOKENS
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS tokens (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    customer_id VARCHAR(100) NOT NULL,
-    token_hash VARCHAR(255) NOT NULL UNIQUE,
-    expires_at TIMESTAMP NULL,
+    token_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    revoked_at TIMESTAMP NULL,
-
+    expires_at TIMESTAMP NULL,
+    customer_id VARCHAR(100) NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'customer',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    admin_id VARCHAR(100) NULL,
     INDEX idx_tokens_customer_id (customer_id),
-    INDEX idx_tokens_expires_at (expires_at),
-
-    CONSTRAINT fk_tokens_customer
-        FOREIGN KEY (customer_id)
-        REFERENCES customers(id)
+    INDEX idx_tokens_role (role)
 );
 
-
--- ============================================================
--- SAMPLE DATA
--- ============================================================
-
--- Categories
 INSERT INTO categories (name, description)
-VALUES
-    ('Electronics', 'Electronic products'),
-    ('Accessories', 'Computer and mobile accessories'),
-    ('Home', 'Home and household products')
-ON DUPLICATE KEY UPDATE
-    description = VALUES(description);
+SELECT 'Electronics', 'Electronic products'
+WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = 'Electronics');
+INSERT INTO categories (name, description)
+SELECT 'Accessories', 'Computer and mobile accessories'
+WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = 'Accessories');
+INSERT INTO categories (name, description)
+SELECT 'Home', 'Home and household products'
+WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = 'Home');
 
+INSERT INTO customers (customer_id, name, email, phone, address)
+SELECT 'CUST001', 'Test Customer', 'customer1@cloudmart.com', '9876543210', 'Hyderabad'
+WHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 'CUST001');
+INSERT INTO customers (customer_id, name, email, phone, address)
+SELECT 'CUST002', 'Customer Two', 'customer2@cloudmart.com', '9876543211', 'Hyderabad'
+WHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 'CUST002');
+INSERT INTO customers (customer_id, name, email, phone, address)
+SELECT 'CUST003', 'Customer Three', 'customer3@cloudmart.com', '9876543212', 'Hyderabad'
+WHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 'CUST003');
+INSERT INTO customers (customer_id, name, email, phone, address)
+SELECT 'CUST004', 'Customer Four', 'customer4@cloudmart.com', '9876543213', 'Hyderabad'
+WHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 'CUST004');
 
--- Customers
-INSERT INTO customers (
-    id,
-    name,
-    email,
-    phone
-)
-VALUES
-    (
-        'CUST001',
-        'Test Customer',
-        'customer@example.com',
-        '9999999999'
-    )
-ON DUPLICATE KEY UPDATE
-    name = VALUES(name),
-    email = VALUES(email),
-    phone = VALUES(phone);
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Laptop', 'Business laptop', 65000.00, 'Electronics', 0
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Laptop');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Wireless Mouse', 'Wireless optical mouse', 1200.00, 'Accessories', 11
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Wireless Mouse');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Keyboard', 'Mechanical keyboard', 3500.00, 'Accessories', 14
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Keyboard');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Apple iPhone 15', 'Apple iPhone 15 128GB smartphone', 69999.00, 'Electronics', 25
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Apple iPhone 15');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Samsung Galaxy S24', 'Samsung Galaxy S24 smartphone', 74999.00, 'Electronics', 18
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Samsung Galaxy S24');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Dell 24 Monitor', '24 inch Full HD monitor', 14500.00, 'Electronics', 12
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Dell 24 Monitor');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Sony Headphones', 'Wireless headphones', 8999.00, 'Accessories', 20
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Sony Headphones');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'USB-C Hub', 'Multi-port USB-C hub', 2499.00, 'Accessories', 30
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'USB-C Hub');
+INSERT INTO products (name, description, price, category, stock_count)
+SELECT 'Smart LED TV', 'Smart LED television', 32999.00, 'Home', 8
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Smart LED TV');
 
+INSERT INTO order_status (status_name, description)
+SELECT 'pending', 'Order has been placed and is being processed'
+WHERE NOT EXISTS (SELECT 1 FROM order_status WHERE status_name = 'pending');
+INSERT INTO order_status (status_name, description)
+SELECT 'confirmed', 'Order has been confirmed'
+WHERE NOT EXISTS (SELECT 1 FROM order_status WHERE status_name = 'confirmed');
+INSERT INTO order_status (status_name, description)
+SELECT 'failed', 'Order processing failed'
+WHERE NOT EXISTS (SELECT 1 FROM order_status WHERE status_name = 'failed');
+INSERT INTO order_status (status_name, description)
+SELECT 'cancelled', 'Order has been cancelled'
+WHERE NOT EXISTS (SELECT 1 FROM order_status WHERE status_name = 'cancelled');
 
--- Products
-INSERT INTO products (
-    name,
-    description,
-    price,
-    category_id,
-    stock_count
-)
-SELECT
-    'Laptop',
-    'Test laptop',
-    65000.00,
-    id,
-    5
-FROM categories
-WHERE name = 'Electronics'
-AND NOT EXISTS (
-    SELECT 1
-    FROM products
-    WHERE name = 'Laptop'
-);
-
-
-INSERT INTO products (
-    name,
-    description,
-    price,
-    category_id,
-    stock_count
-)
-SELECT
-    'Wireless Mouse',
-    'Wireless computer mouse',
-    1200.00,
-    id,
-    25
-FROM categories
-WHERE name = 'Accessories'
-AND NOT EXISTS (
-    SELECT 1
-    FROM products
-    WHERE name = 'Wireless Mouse'
-);
-
-
-INSERT INTO products (
-    name,
-    description,
-    price,
-    category_id,
-    stock_count
-)
-SELECT
-    'Keyboard',
-    'Computer keyboard',
-    3500.00,
-    id,
-    15
-FROM categories
-WHERE name = 'Accessories'
-AND NOT EXISTS (
-    SELECT 1
-    FROM products
-    WHERE name = 'Keyboard'
-);
-
-
--- ============================================================
--- ORDER STATUS SEED DATA
--- ============================================================
-
-INSERT INTO order_status (
-    status,
-    description
-)
-VALUES
-    ('pending', 'Order has been placed and is being processed'),
-    ('confirmed', 'Order has been confirmed'),
-    ('failed', 'Order processing failed'),
-    ('cancelled', 'Order has been cancelled')
-ON DUPLICATE KEY UPDATE
-    description = VALUES(description);
-
-
--- ============================================================
--- END OF SCHEMA
--- ============================================================
+INSERT INTO tokens (token_hash, customer_id, role, is_active)
+SELECT 'customer-token-001', 'CUST001', 'customer', 1
+WHERE NOT EXISTS (SELECT 1 FROM tokens WHERE token_hash = 'customer-token-001' AND customer_id = 'CUST001');
+INSERT INTO tokens (token_hash, customer_id, role, is_active)
+SELECT 'customer-token-002', 'CUST002', 'customer', 1
+WHERE NOT EXISTS (SELECT 1 FROM tokens WHERE token_hash = 'customer-token-002' AND customer_id = 'CUST002');
+INSERT INTO tokens (token_hash, customer_id, role, is_active)
+SELECT 'customer-token-003', 'CUST003', 'customer', 1
+WHERE NOT EXISTS (SELECT 1 FROM tokens WHERE token_hash = 'customer-token-003' AND customer_id = 'CUST003');
+INSERT INTO tokens (token_hash, customer_id, role, is_active)
+SELECT 'customer-token-004', 'CUST004', 'customer', 1
+WHERE NOT EXISTS (SELECT 1 FROM tokens WHERE token_hash = 'customer-token-004' AND customer_id = 'CUST004');
+INSERT INTO tokens (token_hash, customer_id, role, is_active, admin_id)
+SELECT 'admin-token-001', NULL, 'admin', 1, 'ADMIN001'
+WHERE NOT EXISTS (SELECT 1 FROM tokens WHERE token_hash = 'admin-token-001' AND role = 'admin');

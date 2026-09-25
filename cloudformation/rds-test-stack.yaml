@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: CloudMart temporary Lambda to RDS connectivity test
+Description: CloudMart RDS connectivity test and schema initialization using the existing Product Lambda
 
 Parameters:
 
@@ -34,7 +34,7 @@ Resources:
         Fn::ImportValue:
           Fn::Sub: CloudMart-${Environment}-ApplicationLambdaRoleArn
 
-      Timeout: 10
+      Timeout: 30
 
       MemorySize: 128
 
@@ -64,6 +64,9 @@ Resources:
           DB_NAME_PARAMETER:
             !Sub /cloudmart/${Environment}/database/name
 
+          PRODUCT_LAMBDA_NAME:
+            !Sub CloudMart-${Environment}-ProductService
+
       Code:
 
         ZipFile: |
@@ -81,6 +84,7 @@ Resources:
 
 
           ssm = boto3.client("ssm")
+          lambda_client = boto3.client("lambda")
 
 
           DB_HOST_PARAMETER = os.environ["DB_HOST_PARAMETER"]
@@ -88,6 +92,7 @@ Resources:
           DB_PORT_PARAMETER = os.environ["DB_PORT_PARAMETER"]
 
           DB_NAME_PARAMETER = os.environ["DB_NAME_PARAMETER"]
+          PRODUCT_LAMBDA_NAME = os.environ["PRODUCT_LAMBDA_NAME"]
 
 
           def get_parameter(name):
@@ -102,6 +107,35 @@ Resources:
           def lambda_handler(event, context):
 
               try:
+
+                  # Use the existing Product Lambda for schema initialization.
+                  # No additional Lambda is created for this operation.
+                  if event.get("action") == "init_schema":
+
+                      invoke_response = lambda_client.invoke(
+                          FunctionName=PRODUCT_LAMBDA_NAME,
+                          InvocationType="RequestResponse",
+                          Payload=json.dumps({"action": "init_schema"}).encode("utf-8")
+                      )
+
+                      payload = invoke_response["Payload"].read().decode("utf-8")
+
+                      if invoke_response.get("FunctionError"):
+                          raise RuntimeError(payload)
+
+                      result = json.loads(payload)
+
+                      if result.get("statusCode") != 200:
+                          raise RuntimeError(result.get("body", payload))
+
+                      logger.info(json.dumps({
+                          "level": "INFO",
+                          "service": "rds-connectivity-test",
+                          "action": "schema_initialization",
+                          "status": "success"
+                      }))
+
+                      return result
 
                   host = get_parameter(
                       DB_HOST_PARAMETER

@@ -338,6 +338,7 @@ jobs:
           rm -rf build/product-lambda
           mkdir -p build/product-lambda
           cp lambda/product-lambda/index.py build/product-lambda/index.py
+          cp lambda/schema.sql build/product-lambda/schema.sql
 
           if [ -f lambda/product-lambda/requirements.txt ]; then
             python -m pip install \
@@ -425,7 +426,7 @@ jobs:
   deploy-rds-test:
     runs-on: ubuntu-latest
 
-    needs: deploy-auth
+    needs: deploy-api
 
     steps:
 
@@ -458,6 +459,30 @@ jobs:
               Environment=${ENVIRONMENT} \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
+
+      - name: Initialize RDS schema using existing RDS Test Lambda
+        run: |
+          for attempt in {1..12}; do
+            aws lambda invoke \
+              --function-name CloudMart-${ENVIRONMENT}-RDS-Test \
+              --payload '{"action":"init_schema"}' \
+              --cli-binary-format raw-in-base64-out \
+              --invocation-type RequestResponse \
+              rds-init-response.json
+
+            cat rds-init-response.json
+
+            if grep -q '"statusCode": 200' rds-init-response.json; then
+              echo "RDS schema initialization succeeded."
+              exit 0
+            fi
+
+            echo "RDS schema initialization attempt ${attempt} failed. Retrying..."
+            sleep 15
+          done
+
+          echo "RDS schema initialization failed after 12 attempts."
+          exit 1
 
       - name: Show RDS Test Lambda
         run: |
