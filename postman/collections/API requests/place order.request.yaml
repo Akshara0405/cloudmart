@@ -1,0 +1,27 @@
+$kind: http-request
+description: ""
+url: https://kz7qku7jaj.execute-api.ap-south-1.amazonaws.com/dev/orders
+method: POST
+headers:
+  Authorization: "{{bearer_token_195p}}"
+  Customer-Id: CUST001
+body:
+  type: json
+  content: "{\r
+
+    \  \"customer_id\": \"CUST001\",\r
+
+    \  \"items\": [\r
+
+    \    {\r
+
+    \      \"product_id\": 1,\r
+
+    \      \"quantity\": 100\r
+
+    \    }\r
+
+    \  ]\r
+
+    }"
+order: 3709340732004510

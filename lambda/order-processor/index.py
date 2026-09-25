@@ -689,20 +689,44 @@ def create_order(event):
                     "customer_id": customer_id
                 }))
 
+                cursor.execute(
+                    """
+                    INSERT INTO orders
+                    (
+                        customer_id,
+                        status
+                    )
+                    VALUES
+                    (
+                        %s,
+                        'failed'
+                    )
+                    """,
+                    (customer_id,)
+                )
+
+                failed_order_id = cursor.lastrowid
+
+                connection.commit()
+
                 publish_metric("OrdersFailed")
 
                 publish_order_event(
                     "OrderFailed",
                     {
+                        "order_id": failed_order_id,
                         "reason": "customer_not_found",
-                        "customer_id": customer_id
+                        "customer_id": customer_id,
+                        "status": "failed"
                     }
                 )
 
                 return response(
                     404,
                     {
-                        "message": "Customer not found"
+                        "message": "Customer not found",
+                        "order_id": failed_order_id,
+                        "status": "failed"
                     }
                 )
 
@@ -766,15 +790,37 @@ def create_order(event):
                         "quantity": quantity
                     }))
 
+                    cursor.execute(
+                        """
+                        INSERT INTO orders
+                        (
+                            customer_id,
+                            status
+                        )
+                        VALUES
+                        (
+                            %s,
+                            'failed'
+                        )
+                        """,
+                        (customer_id,)
+                    )
+
+                    failed_order_id = cursor.lastrowid
+
+                    connection.commit()
+
                     publish_metric("OrdersFailed")
 
                     publish_order_event(
                         "OrderFailed",
                         {
+                            "order_id": failed_order_id,
                             "reason": "product_not_found",
                             "customer_id": customer_id,
                             "product_id": product_id,
-                            "quantity": quantity
+                            "quantity": quantity,
+                            "status": "failed"
                         }
                     )
 
@@ -782,7 +828,9 @@ def create_order(event):
                         404,
                         {
                             "message": "Product not found",
-                            "product_id": product_id
+                            "order_id": failed_order_id,
+                            "product_id": product_id,
+                            "status": "failed"
                         }
                     )
 
@@ -803,16 +851,38 @@ def create_order(event):
                         "available_stock": current_stock
                     }))
 
+                    cursor.execute(
+                        """
+                        INSERT INTO orders
+                        (
+                            customer_id,
+                            status
+                        )
+                        VALUES
+                        (
+                            %s,
+                            'failed'
+                        )
+                        """,
+                        (customer_id,)
+                    )
+
+                    failed_order_id = cursor.lastrowid
+
+                    connection.commit()
+
                     publish_metric("OrdersFailed")
 
                     publish_order_event(
                         "OrderFailed",
                         {
+                            "order_id": failed_order_id,
                             "reason": "insufficient_stock",
                             "customer_id": customer_id,
                             "product_id": product_id,
                             "quantity": quantity,
-                            "available_stock": current_stock
+                            "available_stock": current_stock,
+                            "status": "failed"
                         }
                     )
 
@@ -820,9 +890,11 @@ def create_order(event):
                         409,
                         {
                             "message": "Insufficient stock",
+                            "order_id": failed_order_id,
                             "product_id": product_id,
                             "available_stock": current_stock,
-                            "requested_quantity": quantity
+                            "requested_quantity": quantity,
+                            "status": "failed"
                         }
                     )
 
