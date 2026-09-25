@@ -231,10 +231,7 @@ Resources:
               python3-pip \
               nginx \
               amazon-ssm-agent \
-              awscli \
-              
-
-
+              awscli 
             # ====================================================
             # START SSM AGENT
             # ====================================================
