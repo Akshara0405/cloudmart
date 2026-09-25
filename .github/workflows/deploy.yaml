@@ -229,6 +229,10 @@ jobs:
   # AUTHENTICATION STACK
   # ============================================================
 
+  # ============================================================
+  # AUTHENTICATION STACK
+  # ============================================================
+
   deploy-auth:
     runs-on: ubuntu-latest
 
@@ -251,8 +255,15 @@ jobs:
 
       - name: Package Authorizer Lambda
         run: |
+          rm -rf build/authorizer
           mkdir -p build/authorizer
+
           cp lambda/lambda-authorizer/index.py build/authorizer/index.py
+
+          python -m pip install \
+            -r lambda/lambda-authorizer/requirements.txt \
+            -t build/authorizer
+
           cd build/authorizer
           zip -r ../../lambda-authorizer.zip .
 
@@ -307,7 +318,6 @@ jobs:
             --region ${AWS_REGION} \
             --query "Stacks[0].Outputs" \
             --output table
-
 
   # ============================================================
   # API STACK
