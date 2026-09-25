@@ -237,6 +237,28 @@ def get_products():
 # ============================================================
 # RECENT ORDERS
 # ============================================================
+#
+# IMPORTANT:
+# The current orders table contains:
+#
+# id
+# customer_id
+# status
+# created_at
+# deleted_at
+# updated_at
+# is_deleted
+#
+# Therefore this query does NOT reference:
+#
+# failure_reason
+# failure_product_id
+# failure_quantity
+# failure_available_stock
+#
+# Failed orders without order_items will still appear because
+# LEFT JOIN is used.
+# ============================================================
 
 def get_recent_orders(status_filter=None):
 
@@ -265,12 +287,7 @@ def get_recent_orders(status_filter=None):
 
                 (
                     oi.quantity * oi.price
-                ) AS line_total,
-
-                o.failure_reason,
-                o.failure_product_id,
-                o.failure_quantity,
-                o.failure_available_stock
+                ) AS line_total
 
             FROM orders o
 
@@ -512,17 +529,6 @@ def get_business_metrics():
 
             # ------------------------------------------------
             # CUSTOMERS
-            #
-            # Actual customers table does NOT have:
-            # is_deleted
-            #
-            # It has:
-            # customer_id
-            # name
-            # email
-            # status
-            # created_at
-            # updated_at
             # ------------------------------------------------
 
             cursor.execute(
