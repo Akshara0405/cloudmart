@@ -695,64 +695,23 @@ jobs:
           echo "Dashboard files verified."
 
 
-      - name: Upload Latest Dashboard Files To S3
+      - name: Upload Dashboard Files
         run: |
 
-          echo "Uploading the current dashboard files from this GitHub commit..."
-          echo "Commit: ${GITHUB_SHA}"
-
-          # Explicitly upload each dashboard file.
-          # This overwrites the existing S3 object instead of relying on
-          # recursive copy comparison behavior.
           aws s3 cp \
-            dashboard/app.py \
-            "s3://${REPORTS_BUCKET}/dashboard/app.py" \
-            --region "${AWS_REGION}" \
-            --content-type "text/x-python" \
-            --cache-control "no-cache"
-
-          aws s3 cp \
-            dashboard/requirements.txt \
-            "s3://${REPORTS_BUCKET}/dashboard/requirements.txt" \
-            --region "${AWS_REGION}" \
-            --content-type "text/plain" \
-            --cache-control "no-cache"
-
-          aws s3 cp \
-            dashboard/templates/index.html \
-            "s3://${REPORTS_BUCKET}/dashboard/templates/index.html" \
-            --region "${AWS_REGION}" \
-            --content-type "text/html" \
-            --cache-control "no-cache"
+            dashboard/ \
+            "s3://${REPORTS_BUCKET}/dashboard/" \
+            --recursive \
+            --region "${AWS_REGION}"
 
 
-      - name: Verify Latest Dashboard Files In S3
+      - name: Verify Dashboard Upload
         run: |
 
-          echo "Verifying the dashboard objects currently stored in S3..."
-
-          aws s3api head-object \
-            --bucket "${REPORTS_BUCKET}" \
-            --key "dashboard/app.py" \
-            --region "${AWS_REGION}" \
-            --query "{Key:Metadata,LastModified:LastModified,Size:ContentLength,ETag:ETag}" \
-            --output table
-
-          aws s3api head-object \
-            --bucket "${REPORTS_BUCKET}" \
-            --key "dashboard/requirements.txt" \
-            --region "${AWS_REGION}" \
-            --query "{Key:Metadata,LastModified:LastModified,Size:ContentLength,ETag:ETag}" \
-            --output table
-
-          aws s3api head-object \
-            --bucket "${REPORTS_BUCKET}" \
-            --key "dashboard/templates/index.html" \
-            --region "${AWS_REGION}" \
-            --query "{Key:Metadata,LastModified:LastModified,Size:ContentLength,ETag:ETag}" \
-            --output table
-
-          echo "Dashboard files are present in the reports bucket."
+          aws s3 ls \
+            "s3://${REPORTS_BUCKET}/dashboard/" \
+            --recursive \
+            --region "${AWS_REGION}"
 
 
       - name: Validate Dashboard Stack
@@ -793,105 +752,3 @@ jobs:
             --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
             --region "${AWS_REGION}" \
             --query "Stacks[0].Outputs"
-
-
-      # ============================================================
-      # UPDATE THE EXISTING EC2 DASHBOARD
-      #
-      # CloudFormation does not re-run EC2 UserData just because
-      # files in S3 changed. Uploading app.py/index.html is therefore
-      # not enough. Use SSM Run Command to pull the newest files into
-      # the existing EC2 and restart the Flask/Gunicorn service.
-      # ============================================================
-
-      - name: Get Dashboard Instance ID
-        run: |
-
-          DASHBOARD_INSTANCE_ID=$(
-            aws cloudformation describe-stacks \
-              --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
-              --region "${AWS_REGION}" \
-              --query "Stacks[0].Outputs[?OutputKey=='DashboardInstanceId'].OutputValue" \
-              --output text
-          )
-
-          if [ -z "${DASHBOARD_INSTANCE_ID}" ] || [ "${DASHBOARD_INSTANCE_ID}" = "None" ]; then
-            echo "Dashboard instance ID was not found."
-            exit 1
-          fi
-
-          echo "DASHBOARD_INSTANCE_ID=${DASHBOARD_INSTANCE_ID}" >> "${GITHUB_ENV}"
-          echo "Dashboard instance: ${DASHBOARD_INSTANCE_ID}"
-
-
-      - name: Deploy Latest Dashboard Files To EC2
-        run: |
-
-          cat > /tmp/cloudmart-dashboard-commands.json <<EOF
-          {
-            "commands": [
-              "set -e",
-              "REPORTS_BUCKET=$(aws ssm get-parameter --name /cloudmart/${ENVIRONMENT}/storage/reports-bucket --with-decryption --query Parameter.Value --output text --region ${AWS_REGION})",
-              "mkdir -p /opt/cloudmart-dashboard/templates",
-              "aws s3 cp s3://${REPORTS_BUCKET}/dashboard/app.py /opt/cloudmart-dashboard/app.py --region ${AWS_REGION}",
-              "aws s3 cp s3://${REPORTS_BUCKET}/dashboard/requirements.txt /opt/cloudmart-dashboard/requirements.txt --region ${AWS_REGION}",
-              "aws s3 cp s3://${REPORTS_BUCKET}/dashboard/templates/index.html /opt/cloudmart-dashboard/templates/index.html --region ${AWS_REGION}",
-              "python3 -m pip install -r /opt/cloudmart-dashboard/requirements.txt",
-              "python3 -m py_compile /opt/cloudmart-dashboard/app.py",
-              "systemctl restart cloudmart-dashboard",
-              "systemctl is-active --quiet cloudmart-dashboard",
-              "curl --fail http://127.0.0.1:5000/health"
-            ]
-          }
-          EOF
-
-          COMMAND_ID=$(
-            aws ssm send-command \
-              --instance-ids "${DASHBOARD_INSTANCE_ID}" \
-              --document-name "AWS-RunShellScript" \
-              --comment "CloudMart dashboard deployment ${GITHUB_SHA}" \
-              --parameters file:///tmp/cloudmart-dashboard-commands.json \
-              --region "${AWS_REGION}" \
-              --query "Command.CommandId" \
-              --output text
-          )
-
-          echo "SSM command ID: ${COMMAND_ID}"
-
-          for attempt in $(seq 1 30); do
-
-            STATUS=$(
-              aws ssm get-command-invocation \
-                --command-id "${COMMAND_ID}" \
-                --instance-id "${DASHBOARD_INSTANCE_ID}" \
-                --region "${AWS_REGION}" \
-                --query "Status" \
-                --output text
-            )
-
-            echo "Attempt ${attempt}: ${STATUS}"
-
-            case "${STATUS}" in
-              Success)
-                echo "Dashboard updated successfully."
-                exit 0
-                ;;
-              Failed|Cancelled|TimedOut|Undeliverable|Terminated)
-                echo "Dashboard update failed."
-
-                aws ssm get-command-invocation \
-                  --command-id "${COMMAND_ID}" \
-                  --instance-id "${DASHBOARD_INSTANCE_ID}" \
-                  --region "${AWS_REGION}" \
-                  --query "{Status:Status,StatusDetails:StatusDetails,StandardOutputContent:StandardOutputContent,StandardErrorContent:StandardErrorContent}" \
-                  --output yaml
-
-                exit 1
-                ;;
-            esac
-
-            sleep 5
-          done
-
-          echo "Timed out waiting for dashboard update."
-          exit 1
