@@ -229,10 +229,6 @@ jobs:
   # AUTHENTICATION STACK
   # ============================================================
 
-  # ============================================================
-  # AUTHENTICATION STACK
-  # ============================================================
-
   deploy-auth:
     runs-on: ubuntu-latest
 
@@ -319,6 +315,7 @@ jobs:
             --query "Stacks[0].Outputs" \
             --output table
 
+
   # ============================================================
   # API STACK
   # ============================================================
@@ -347,6 +344,7 @@ jobs:
         run: |
           rm -rf build/product-lambda
           mkdir -p build/product-lambda
+
           cp lambda/product-lambda/index.py build/product-lambda/index.py
           cp lambda/schema.sql build/product-lambda/schema.sql
 
@@ -577,7 +575,12 @@ jobs:
   deploy-report:
     runs-on: ubuntu-latest
 
-    needs: deploy-api
+    # IMPORTANT:
+    # Wait for schema initialization before generating
+    # the first daily report.
+    needs:
+      - deploy-api
+      - test-product-lambda
 
     steps:
 
@@ -659,20 +662,68 @@ jobs:
             --query "Stacks[0].Outputs" \
             --output table
 
+      # ========================================================
+      # GENERATE FIRST DAILY REPORT
+      # ========================================================
+
+      - name: Generate initial daily report
+        run: |
+
+          REPORTS_BUCKET=$(
+            aws ssm get-parameter \
+              --name "/cloudmart/${ENVIRONMENT}/storage/reports-bucket" \
+              --with-decryption \
+              --query "Parameter.Value" \
+              --output text \
+              --region "${AWS_REGION}"
+          )
+
+          echo "Reports bucket: ${REPORTS_BUCKET}"
+
+          echo '{}' > report-payload.json
+
+          aws lambda invoke \
+            --function-name "CloudMart-${ENVIRONMENT}-daily-report" \
+            --region "${AWS_REGION}" \
+            --cli-binary-format raw-in-base64-out \
+            --payload fileb://report-payload.json \
+            report-response.json
+
+          echo "Daily report Lambda response:"
+          cat report-response.json
+
+          if grep -q '"statusCode": 200' report-response.json; then
+            echo "Initial daily report generation succeeded."
+          else
+            echo "Initial daily report generation failed."
+            exit 1
+          fi
+
+          REPORT_KEY="reports/daily-report-$(date -u +%Y-%m-%d).csv"
+
+          echo "Checking for report:"
+          echo "s3://${REPORTS_BUCKET}/${REPORT_KEY}"
+
+          aws s3api head-object \
+            --bucket "${REPORTS_BUCKET}" \
+            --key "${REPORT_KEY}" \
+            --region "${AWS_REGION}"
+
+          echo "Initial daily report exists in S3."
+
 
   # ============================================================
-  # EC2 DASHBOARD
-  # ============================================================
-
-    # ============================================================
   # EC2 DASHBOARD
   # ============================================================
 
   deploy-dashboard:
     name: Deploy EC2 Dashboard
 
+    # IMPORTANT:
+    # Wait for the initial report to be generated before
+    # deploying the dashboard.
     needs:
-      - deploy-api
+      - deploy-report
 
     runs-on: ubuntu-latest
 
@@ -681,19 +732,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-
       - name: Verify AWS access
         run: |
           aws sts get-caller-identity
           echo "AWS Region: ${AWS_REGION}"
-
 
       - name: Get Reports Bucket
         shell: bash
@@ -712,7 +760,6 @@ jobs:
 
           echo "Reports bucket: ${REPORTS_BUCKET}"
 
-
       - name: Verify Dashboard Files
         run: |
 
@@ -724,7 +771,6 @@ jobs:
 
           echo "Dashboard files verified."
 
-
       - name: Upload Dashboard Files
         run: |
 
@@ -734,7 +780,6 @@ jobs:
             --recursive \
             --region "${AWS_REGION}"
 
-
       - name: Verify Dashboard Upload
         run: |
 
@@ -743,14 +788,12 @@ jobs:
             --recursive \
             --region "${AWS_REGION}"
 
-
       - name: Validate Dashboard Stack
         run: |
 
           aws cloudformation validate-template \
             --template-body file://cloudformation/dashboard-stack.yaml \
             --region "${AWS_REGION}"
-
 
       - name: Deploy Dashboard Stack
         run: |
@@ -764,7 +807,6 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset
 
-
       - name: Dashboard Stack Status
         run: |
 
@@ -774,12 +816,11 @@ jobs:
             --query "Stacks[0].StackStatus" \
             --output text
 
-
       - name: Dashboard Stack Outputs
         run: |
 
           aws cloudformation describe-stacks \
             --stack-name "cloudmart-${ENVIRONMENT}-dashboard" \
             --region "${AWS_REGION}" \
-            --query "Stacks[0].Outputs"
- 
+            --query "Stacks[0].Outputs" \
+            --output table

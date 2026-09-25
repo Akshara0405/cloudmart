@@ -239,8 +239,7 @@ Resources:
       RestApiId: !Ref CloudMartApi
       ResourceId: !Ref ProductsResource
       HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref CloudMartAuthorizer
+      AuthorizationType: NONE
 
       Integration:
         Type: AWS_PROXY
@@ -259,8 +258,7 @@ Resources:
       RestApiId: !Ref CloudMartApi
       ResourceId: !Ref ProductIdResource
       HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref CloudMartAuthorizer
+      AuthorizationType: NONE
 
       Integration:
         Type: AWS_PROXY

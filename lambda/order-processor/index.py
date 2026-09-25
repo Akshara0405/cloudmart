@@ -434,8 +434,11 @@ def create_order(event):
         role, authenticated_customer_id = get_authorization_context(event)
 
         # ----------------------------------------------------
-        # VERIFY AUTHENTICATED CUSTOMER
+        # USE AUTHENTICATED CUSTOMER ID
         # ----------------------------------------------------
+        # For customer requests, the customer identity comes from
+        # the Lambda Authorizer context. The client does not need
+        # to repeat customer_id in the JSON request body.
 
         if role == "customer":
 
@@ -451,32 +454,16 @@ def create_order(event):
                     }
                 )
 
-            if customer_id is None or str(customer_id).strip() == "":
+            customer_id = str(authenticated_customer_id).strip()
 
-                return response(
-                    400,
-                    {
-                        "message": "customer_id is required"
-                    }
-                )
-
-            if str(customer_id) != str(authenticated_customer_id):
-
-                logger.warning(json.dumps({
-                    "level": "WARN",
-                    "service": "order-processor",
-                    "action": "order_failed",
-                    "reason": "customer_identity_mismatch",
-                    "authenticated_customer_id": authenticated_customer_id,
-                    "requested_customer_id": customer_id
-                }))
+            if not customer_id:
 
                 return response(
                     403,
                     {
                         "message": (
-                            "You are not allowed to create an order "
-                            "for another customer"
+                            "Customer identity is missing "
+                            "from authorization context"
                         )
                     }
                 )
