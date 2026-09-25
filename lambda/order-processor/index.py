@@ -694,15 +694,17 @@ def create_order(event):
                     INSERT INTO orders
                     (
                         customer_id,
-                        status
+                        status,
+                        failure_reason
                     )
                     VALUES
                     (
                         %s,
-                        'failed'
+                        'failed',
+                        %s
                     )
                     """,
-                    (customer_id,)
+                    (customer_id, "customer_not_found")
                 )
 
                 failed_order_id = cursor.lastrowid
@@ -795,15 +797,26 @@ def create_order(event):
                         INSERT INTO orders
                         (
                             customer_id,
-                            status
+                            status,
+                            failure_reason,
+                            failure_product_id,
+                            failure_quantity
                         )
                         VALUES
                         (
                             %s,
-                            'failed'
+                            'failed',
+                            %s,
+                            %s,
+                            %s
                         )
                         """,
-                        (customer_id,)
+                        (
+                            customer_id,
+                            "product_not_found",
+                            product_id,
+                            quantity
+                        )
                     )
 
                     failed_order_id = cursor.lastrowid
@@ -856,15 +869,29 @@ def create_order(event):
                         INSERT INTO orders
                         (
                             customer_id,
-                            status
+                            status,
+                            failure_reason,
+                            failure_product_id,
+                            failure_quantity,
+                            failure_available_stock
                         )
                         VALUES
                         (
                             %s,
-                            'failed'
+                            'failed',
+                            %s,
+                            %s,
+                            %s,
+                            %s
                         )
                         """,
-                        (customer_id,)
+                        (
+                            customer_id,
+                            "insufficient_stock",
+                            product_id,
+                            quantity,
+                            current_stock
+                        )
                     )
 
                     failed_order_id = cursor.lastrowid

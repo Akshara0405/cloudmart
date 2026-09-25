@@ -25,14 +25,12 @@ def load_flask_secret():
             return file.read().strip()
 
     secret = secrets.token_hex(32)
-
     os.makedirs(os.path.dirname(SECRET_FILE), exist_ok=True)
 
     with open(SECRET_FILE, "w", encoding="utf-8") as file:
         file.write(secret)
 
     os.chmod(SECRET_FILE, 0o600)
-
     return secret
 
 
@@ -47,7 +45,6 @@ def get_ssm_parameter(name, secure=False):
         Name=name,
         WithDecryption=secure
     )
-
     return response["Parameter"]["Value"]
 
 
@@ -163,41 +160,50 @@ def get_recent_orders(status_filter=None):
     try:
         connection = get_db_connection()
 
-        with connection.cursor() as cursor:
-            query = """
-                SELECT
-                    o.id AS order_id,
-                    o.customer_id,
-                    o.status,
-                    o.created_at,
-                    oi.product_id,
-                    p.name AS product_name,
-                    oi.quantity,
-                    oi.price
-                FROM orders o
-                LEFT JOIN order_items oi
-                    ON o.id = oi.order_id
-                    AND oi.is_deleted = FALSE
-                LEFT JOIN products p
-                    ON oi.product_id = p.id
-                WHERE o.is_deleted = FALSE
-            """
+        query = """
+            SELECT
+                o.id AS order_id,
+                o.customer_id,
+                c.name AS customer_name,
+                c.email AS customer_email,
+                o.status,
+                o.created_at,
+                oi.product_id,
+                p.name AS product_name,
+                oi.quantity,
+                oi.price,
+                (oi.quantity * oi.price) AS line_total,
+                o.failure_reason,
+                o.failure_product_id,
+                o.failure_quantity,
+                o.failure_available_stock
+            FROM orders o
+            LEFT JOIN customers c
+                ON o.customer_id = c.customer_id
+                AND c.is_deleted = FALSE
+            LEFT JOIN order_items oi
+                ON o.id = oi.order_id
+                AND oi.is_deleted = FALSE
+            LEFT JOIN products p
+                ON oi.product_id = p.id
+            WHERE o.is_deleted = FALSE
+        """
 
-            parameters = []
+        parameters = []
 
-            if status_filter:
-                query += """
-                    AND LOWER(TRIM(o.status)) = %s
-                """
-                parameters.append(status_filter)
-
+        if status_filter:
             query += """
-                ORDER BY o.created_at DESC, oi.id DESC
-                LIMIT 50
+                AND LOWER(TRIM(o.status)) = %s
             """
+            parameters.append(status_filter)
 
+        query += """
+            ORDER BY o.created_at DESC, oi.id DESC
+            LIMIT 50
+        """
+
+        with connection.cursor() as cursor:
             cursor.execute(query, parameters)
-
             return cursor.fetchall()
 
     except Exception as error:
@@ -224,22 +230,34 @@ def get_order_counts():
                         SUM(
                             CASE
                                 WHEN LOWER(TRIM(status)) = 'confirmed'
-                                THEN 1
-                                ELSE 0
+                                THEN 1 ELSE 0
                             END
-                        ),
-                        0
+                        ), 0
                     ) AS confirmed_orders,
                     COALESCE(
                         SUM(
                             CASE
                                 WHEN LOWER(TRIM(status)) = 'failed'
-                                THEN 1
-                                ELSE 0
+                                THEN 1 ELSE 0
                             END
-                        ),
-                        0
-                    ) AS failed_orders
+                        ), 0
+                    ) AS failed_orders,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(status)) = 'pending'
+                                THEN 1 ELSE 0
+                            END
+                        ), 0
+                    ) AS pending_orders,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(status)) = 'cancelled'
+                                THEN 1 ELSE 0
+                            END
+                        ), 0
+                    ) AS cancelled_orders
                 FROM orders
                 WHERE is_deleted = FALSE
                 """
@@ -253,8 +271,352 @@ def get_order_counts():
         return {
             "total_orders": 0,
             "confirmed_orders": 0,
-            "failed_orders": 0
+            "failed_orders": 0,
+            "pending_orders": 0,
+            "cancelled_orders": 0
         }
+
+    finally:
+        if connection:
+            connection.close()
+
+
+def get_business_metrics():
+    """
+    Dashboard-level business metrics.
+
+    Revenue is calculated from confirmed, non-deleted order items only.
+    This prevents failed/pending/cancelled orders from being counted as sales.
+    """
+    connection = None
+
+    result = {
+        "total_revenue": 0,
+        "confirmed_revenue": 0,
+        "total_customers": 0,
+        "active_customers": 0,
+        "total_products": 0,
+        "low_stock_products": 0,
+        "average_order_value": 0,
+        "units_sold": 0,
+    }
+
+    try:
+        connection = get_db_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(o.status)) = 'confirmed'
+                                THEN oi.quantity * oi.price
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS confirmed_revenue,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(o.status)) = 'confirmed'
+                                THEN oi.quantity
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS units_sold,
+
+                    COUNT(
+                        DISTINCT CASE
+                            WHEN LOWER(TRIM(o.status)) = 'confirmed'
+                            THEN o.id
+                        END
+                    ) AS confirmed_order_count
+
+                FROM orders o
+                LEFT JOIN order_items oi
+                    ON o.id = oi.order_id
+                    AND oi.is_deleted = FALSE
+                WHERE o.is_deleted = FALSE
+                """
+            )
+
+            revenue = cursor.fetchone()
+
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_customers,
+                    SUM(
+                        CASE
+                            WHEN is_deleted = FALSE THEN 1
+                            ELSE 0
+                        END
+                    ) AS active_customers
+                FROM customers
+                """
+            )
+
+            customers = cursor.fetchone()
+
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_products,
+                    SUM(
+                        CASE
+                            WHEN stock_count <= 5 THEN 1
+                            ELSE 0
+                        END
+                    ) AS low_stock_products
+                FROM products
+                WHERE is_deleted = FALSE
+                """
+            )
+
+            products = cursor.fetchone()
+
+            confirmed_revenue = float(revenue["confirmed_revenue"] or 0)
+            confirmed_order_count = int(
+                revenue["confirmed_order_count"] or 0
+            )
+
+            result.update(
+                {
+                    "total_revenue": confirmed_revenue,
+                    "confirmed_revenue": confirmed_revenue,
+                    "total_customers": int(
+                        customers["total_customers"] or 0
+                    ),
+                    "active_customers": int(
+                        customers["active_customers"] or 0
+                    ),
+                    "total_products": int(
+                        products["total_products"] or 0
+                    ),
+                    "low_stock_products": int(
+                        products["low_stock_products"] or 0
+                    ),
+                    "average_order_value": (
+                        confirmed_revenue / confirmed_order_count
+                        if confirmed_order_count
+                        else 0
+                    ),
+                    "units_sold": int(revenue["units_sold"] or 0),
+                }
+            )
+
+            return result
+
+    except Exception as error:
+        print(f"Business metrics error: {error}")
+        return result
+
+    finally:
+        if connection:
+            connection.close()
+
+
+def get_customers():
+    connection = None
+
+    try:
+        connection = get_db_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    c.customer_id,
+                    c.name,
+                    c.email,
+                    c.phone,
+                    c.address,
+                    c.created_at,
+
+                    COUNT(
+                        DISTINCT CASE
+                            WHEN o.is_deleted = FALSE
+                            THEN o.id
+                        END
+                    ) AS order_count,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(o.status)) = 'confirmed'
+                                 AND o.is_deleted = FALSE
+                                 AND oi.is_deleted = FALSE
+                                THEN oi.quantity * oi.price
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS total_spent
+
+                FROM customers c
+
+                LEFT JOIN orders o
+                    ON c.customer_id = o.customer_id
+
+                LEFT JOIN order_items oi
+                    ON o.id = oi.order_id
+
+                WHERE c.is_deleted = FALSE
+
+                GROUP BY
+                    c.customer_id,
+                    c.name,
+                    c.email,
+                    c.phone,
+                    c.address,
+                    c.created_at
+
+                ORDER BY total_spent DESC, c.created_at DESC
+                LIMIT 50
+                """
+            )
+
+            return cursor.fetchall()
+
+    except Exception as error:
+        print(f"Customer query error: {error}")
+        return []
+
+    finally:
+        if connection:
+            connection.close()
+
+
+def get_top_products():
+    connection = None
+
+    try:
+        connection = get_db_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    p.name,
+                    p.category,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(o.status)) = 'confirmed'
+                                THEN oi.quantity
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS units_sold,
+
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN LOWER(TRIM(o.status)) = 'confirmed'
+                                THEN oi.quantity * oi.price
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS revenue
+
+                FROM products p
+
+                LEFT JOIN order_items oi
+                    ON p.id = oi.product_id
+                    AND oi.is_deleted = FALSE
+
+                LEFT JOIN orders o
+                    ON oi.order_id = o.id
+                    AND o.is_deleted = FALSE
+
+                WHERE p.is_deleted = FALSE
+
+                GROUP BY
+                    p.id,
+                    p.name,
+                    p.category
+
+                ORDER BY revenue DESC
+
+                LIMIT 5
+                """
+            )
+
+            return cursor.fetchall()
+
+    except Exception as error:
+        print(f"Top product query error: {error}")
+        return []
+
+    finally:
+        if connection:
+            connection.close()
+
+
+def get_daily_revenue():
+    connection = None
+
+    try:
+        connection = get_db_connection()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    DATE(o.created_at) AS sale_date,
+                    COALESCE(
+                        SUM(oi.quantity * oi.price),
+                        0
+                    ) AS revenue
+                FROM orders o
+                INNER JOIN order_items oi
+                    ON o.id = oi.order_id
+                    AND oi.is_deleted = FALSE
+                WHERE o.is_deleted = FALSE
+                  AND LOWER(TRIM(o.status)) = 'confirmed'
+                  AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY DATE(o.created_at)
+                ORDER BY sale_date
+                """
+            )
+
+            rows = cursor.fetchall()
+
+            values = {
+                str(row["sale_date"]): float(row["revenue"] or 0)
+                for row in rows
+            }
+
+            # Always return seven calendar days, including zero-revenue days.
+            result = []
+
+            from datetime import date, timedelta
+
+            today = date.today()
+
+            for offset in range(6, -1, -1):
+                current_day = today - timedelta(days=offset)
+                key = str(current_day)
+
+                result.append(
+                    {
+                        "label": current_day.strftime("%d %b"),
+                        "revenue": values.get(key, 0)
+                    }
+                )
+
+            return result
+
+    except Exception as error:
+        print(f"Daily revenue query error: {error}")
+        return []
 
     finally:
         if connection:
@@ -352,7 +714,6 @@ def login():
 @app.route("/logout")
 def logout():
     session.clear()
-
     return redirect(url_for("login"))
 
 
@@ -366,7 +727,8 @@ def dashboard():
     allowed_statuses = {
         "confirmed",
         "failed",
-        "pending"
+        "pending",
+        "cancelled"
     }
 
     if status_filter not in allowed_statuses:
@@ -375,6 +737,10 @@ def dashboard():
     products = get_products()
     recent_orders = get_recent_orders(status_filter)
     order_counts = get_order_counts()
+    business_metrics = get_business_metrics()
+    customers = get_customers()
+    top_products = get_top_products()
+    daily_revenue = get_daily_revenue()
     latest_report = get_latest_report()
 
     return render_template(
@@ -384,6 +750,10 @@ def dashboard():
         products=products,
         recent_orders=recent_orders,
         order_counts=order_counts,
+        business_metrics=business_metrics,
+        customers=customers,
+        top_products=top_products,
+        daily_revenue=daily_revenue,
         latest_report=latest_report,
         selected_status=status_filter,
         generated_at=datetime.now(timezone.utc)
