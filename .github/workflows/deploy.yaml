@@ -683,7 +683,7 @@ jobs:
           echo '{}' > report-payload.json
 
           aws lambda invoke \
-            --function-name "CloudMart-${ENVIRONMENT}-daily-report" \
+            --function-name "CloudMart-${ENVIRONMENT}-Report" \
             --region "${AWS_REGION}" \
             --cli-binary-format raw-in-base64-out \
             --payload fileb://report-payload.json \
