@@ -530,6 +530,12 @@ def get_business_metrics():
             # ------------------------------------------------
             # CUSTOMERS
             # ------------------------------------------------
+            #
+            # The customers table does NOT have a status column.
+            #
+            # is_deleted = FALSE is used to identify active
+            # customer records.
+            # ------------------------------------------------
 
             cursor.execute(
                 """
@@ -537,19 +543,11 @@ def get_business_metrics():
 
                     COUNT(*) AS total_customers,
 
-                    COALESCE(
-                        SUM(
-                            CASE
-                                WHEN UPPER(TRIM(status))
-                                     = 'ACTIVE'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ),
-                        0
-                    ) AS active_customers
+                    COUNT(*) AS active_customers
 
                 FROM customers
+
+                WHERE is_deleted = FALSE
                 """
             )
 
@@ -678,7 +676,6 @@ def get_customers():
                     c.customer_id,
                     c.name,
                     c.email,
-                    c.status,
                     c.created_at,
 
                     COUNT(
@@ -718,12 +715,13 @@ def get_customers():
                     ON o.id = oi.order_id
                     AND oi.is_deleted = FALSE
 
+                WHERE c.is_deleted = FALSE
+
                 GROUP BY
 
                     c.customer_id,
                     c.name,
                     c.email,
-                    c.status,
                     c.created_at
 
                 ORDER BY
@@ -1226,3 +1224,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=5000
     )
+    
