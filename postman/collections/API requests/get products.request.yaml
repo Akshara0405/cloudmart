@@ -1,0 +1,9 @@
+$kind: http-request
+description: ""
+url: https://kr89x4lhqk.execute-api.ap-south-1.amazonaws.com/dev/products
+method: GET
+headers:
+  Authorization: "{{bearer_token_195p}}"
+auth:
+  type: noauth
+order: 4502187934517232
