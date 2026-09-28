@@ -109,6 +109,32 @@ Resources:
           Id:
             LowStockSNSTarget
 
+          InputTransformer:
+
+            InputPathsMap:
+
+              product_id:
+                $.detail.product_id
+
+              stock_count:
+                $.detail.stock_count
+
+              environment:
+                $.detail.environment
+
+            InputTemplate: |
+              CloudMart - Low Stock Alert
+
+              A product has reached the low-stock threshold.
+
+              Product ID: <product_id>
+              Current Stock: <stock_count>
+              Environment: <environment>
+
+              Please review the inventory and consider restocking this product.
+
+              CloudMart Inventory Monitoring
+
 
   # ============================================================
   # LOW STOCK SNS TOPIC POLICY
@@ -219,6 +245,32 @@ Resources:
           Id:
             OrderConfirmationSNSTarget
 
+          InputTransformer:
+
+            InputPathsMap:
+
+              order_id:
+                $.detail.order_id
+
+              customer_id:
+                $.detail.customer_id
+
+              status:
+                $.detail.status
+
+            InputTemplate: |
+              CloudMart - Order Confirmation
+
+              Hello,
+
+              Your order has been successfully confirmed.
+
+              Order ID: <order_id>
+              Customer ID: <customer_id>
+              Status: <status>
+
+              Thank you for shopping with CloudMart.
+
 
   # ============================================================
   # ORDER FAILED EVENTBRIDGE RULE
@@ -254,6 +306,38 @@ Resources:
 
           Id:
             OrderFailedSNSTarget
+
+          InputTransformer:
+
+            InputPathsMap:
+
+              order_id:
+                $.detail.order_id
+
+              customer_id:
+                $.detail.customer_id
+
+              reason:
+                $.detail.reason
+
+              status:
+                $.detail.status
+
+            InputTemplate: |
+              CloudMart - Order Failed
+
+              Hello,
+
+              Your order could not be completed.
+
+              Order ID: <order_id>
+              Customer ID: <customer_id>
+              Status: <status>
+              Reason: <reason>
+
+              Please review the order details and try again.
+
+              CloudMart Order Processing
 
 
   # ============================================================
@@ -389,6 +473,34 @@ Resources:
 
           Id:
             OrderCancellationSNSTarget
+
+          InputTransformer:
+
+            InputPathsMap:
+
+              order_id:
+                $.detail.order_id
+
+              customer_id:
+                $.detail.customer_id
+
+              status:
+                $.detail.status
+
+            InputTemplate: |
+              CloudMart - Order Cancelled
+
+              Hello,
+
+              Your order has been cancelled successfully.
+
+              Order ID: <order_id>
+              Customer ID: <customer_id>
+              Status: <status>
+
+              The cancellation has been processed successfully.
+
+              Thank you for using CloudMart.
 
 
   # ============================================================
