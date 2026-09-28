@@ -279,15 +279,33 @@ def get_recent_orders(status_filter=None):
                 o.status,
                 o.created_at,
 
-                oi.product_id,
-                p.name AS product_name,
+                COALESCE(
+                    oi.product_id,
+                    o.failure_product_id
+                ) AS product_id,
 
-                oi.quantity,
+                COALESCE(
+                    p.name,
+                    CONCAT('Product #', o.failure_product_id)
+                ) AS product_name,
+
+                COALESCE(
+                    oi.quantity,
+                    o.failure_quantity
+                ) AS quantity,
+
                 oi.price,
 
-                (
-                    oi.quantity * oi.price
-                ) AS line_total
+                CASE
+                    WHEN oi.quantity IS NOT NULL
+                    THEN oi.quantity * oi.price
+                    ELSE NULL
+                END AS line_total,
+
+                o.failure_reason,
+                o.failure_product_id,
+                o.failure_quantity,
+                o.failure_available_stock
 
             FROM orders o
 
