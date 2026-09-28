@@ -123,7 +123,13 @@ Resources:
                 $.detail.environment
 
             InputTemplate: >-
-              "CloudMart - Low Stock Alert\n\nA product has reached the low-stock threshold.\n\nProduct ID: <product_id>\nCurrent Stock: <stock_count>\nEnvironment: <environment>\n\nPlease review the inventory and consider restocking this product.\n\nCloudMart Inventory Monitoring"
+              "CloudMart - Low Stock Alert"
+              "A product has reached the low-stock threshold."
+              "Product ID: <product_id>"
+              "Current Stock: <stock_count>"
+              "Environment: <environment>"
+              "Please review the inventory and consider restocking this product."
+              "CloudMart Inventory Monitoring"
 
 
   # ============================================================
@@ -249,7 +255,14 @@ Resources:
                 $.detail.status
 
             InputTemplate: >-
-              "CloudMart - Order Confirmation\n\nHello,\n\nYour order has been successfully confirmed.\n\nOrder ID: <order_id>\nCustomer ID: <customer_id>\nStatus: <status>\n\nThank you for shopping with CloudMart.\n\nCloudMart Order Processing"
+              "CloudMart - Order Confirmation"
+              "Hello,"
+              "Your order has been successfully confirmed."
+              "Order ID: <order_id>"
+              "Customer ID: <customer_id>"
+              "Status: <status>"
+              "Thank you for shopping with CloudMart."
+              "CloudMart Order Processing"
 
 
   # ============================================================
@@ -313,7 +326,15 @@ Resources:
                 $.detail.available_stock
 
             InputTemplate: >-
-              "CloudMart - Order Failed\n\nHello,\n\nYour order could not be completed.\n\nOrder ID: <order_id>\nCustomer ID: <customer_id>\nStatus: <status>\nReason: <reason>\nProduct ID: <product_id>\nRequested Quantity: <quantity>\nAvailable Stock: <available_stock>\n\nPlease review the order details and try again.\n\nCloudMart Order Processing"
+              "CloudMart - Order Failed"
+              "Hello,"
+              "Your order could not be completed."
+              "Order ID: <order_id>"
+              "Customer ID: <customer_id>"
+              "Status: <status>"
+              "Reason: <reason>"
+              "Please review the order details and try again."
+              "CloudMart Order Processing"
 
 
   # ============================================================
@@ -464,7 +485,15 @@ Resources:
                 $.detail.status
 
             InputTemplate: >-
-              "CloudMart - Order Cancelled\n\nHello,\n\nYour order has been cancelled successfully.\n\nOrder ID: <order_id>\nCustomer ID: <customer_id>\nStatus: <status>\n\nThe cancellation has been processed successfully.\n\nThank you for using CloudMart.\n\nCloudMart Order Processing"
+              "CloudMart - Order Cancelled"
+              "Hello,"
+              "Your order has been cancelled successfully."
+              "Order ID: <order_id>"
+              "Customer ID: <customer_id>"
+              "Status: <status>"
+              "The cancellation has been processed successfully."
+              "Thank you for using CloudMart."
+              "CloudMart Order Processing"
 
 
   # ============================================================
