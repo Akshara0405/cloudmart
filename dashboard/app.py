@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import boto3
 import pymysql
+from botocore.config import Config
 from flask import Flask, render_template, request, redirect, url_for, session
 
 
@@ -76,7 +77,13 @@ ssm = boto3.client(
 
 s3 = boto3.client(
     "s3",
-    region_name=AWS_REGION
+    region_name=AWS_REGION,
+    config=Config(
+        signature_version="s3v4",
+        s3={
+            "addressing_style": "path"
+        }
+    )
 )
 
 
