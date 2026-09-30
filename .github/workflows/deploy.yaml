@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 env:
-  ENVIRONMENT: dev
+  ENVIRONMENT: prod
   AWS_REGION: ap-south-1
 
 jobs:
