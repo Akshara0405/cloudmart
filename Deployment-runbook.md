@@ -1,9 +1,9 @@
 # CloudMart Deployment Runbook
 
-**Repository:** `https://github.com/Akshara0405/cloudmart`  
-**Region:** `ap-south-1`  
-**Deployment:** GitHub Actions + AWS CloudFormation  
-**Environments:** `dev` / `prod`
+Repository: `https://github.com/Akshara0405/cloudmart`  
+Region: `ap-south-1`  
+Deployment: GitHub Actions + AWS CloudFormation  
+Environments:** `dev` / `prod`
 
 ---
 
@@ -56,9 +56,9 @@ Use an AWS account with permission to create the CloudMart infrastructure.
 
 Set the AWS region to:
 
-```text
+
 ap-south-1
-```
+
 
 The deployment uses GitHub Actions OIDC, so AWS access keys do **not** need to be stored in GitHub.
 
@@ -71,15 +71,15 @@ In AWS:
 3. Add an OpenID Connect provider.
 4. Provider URL:
 
-```text
+
 https://token.actions.githubusercontent.com
-```
+
 
 5. Audience:
 
-```text
+
 sts.amazonaws.com
-```
+
 
 ---
 
@@ -97,9 +97,9 @@ In AWS IAM:
 
 The role ARN will be added to GitHub as:
 
-```text
+
 AWS_ROLE_ARN
-```
+
 
 ---
 
@@ -107,7 +107,7 @@ AWS_ROLE_ARN
 
 Open:
 
-**GitHub → CloudMart repository → Settings → Secrets and variables → Actions**
+GitHub → CloudMart repository → Settings → Secrets and variables → Actions
 
 Create these repository secrets:
 
@@ -128,25 +128,24 @@ Do not commit passwords or tokens into the repository.
 
 Open:
 
-```text
+
 .github/workflows/deploy.yaml
-```
+
 
 Set:
 
-```yaml
+
 env:
   ENVIRONMENT: dev
   AWS_REGION: ap-south-1
-```
+
 
 For production:
 
-```yaml
+
 env:
   ENVIRONMENT: prod
   AWS_REGION: ap-south-1
-```
 
 The CloudFormation templates use the environment value when creating resource names and environment-specific resources.
 
@@ -156,7 +155,7 @@ The CloudFormation templates use the environment value when creating resource na
 
 Confirm these exist:
 
-```text
+
 .github/workflows/deploy.yaml
 
 cloudformation/
@@ -184,15 +183,15 @@ dashboard/
 ├── requirements.txt
 └── templates/
     └── index.html
-```
+
 
 Commit and push the code:
 
-```bash
+
 git add .
 git commit -m "CloudMart deployment"
 git push origin main
-```
+
 
 ---
 
@@ -210,7 +209,7 @@ Select the required branch and start the workflow.
 
 The workflow deploys the stacks in this order:
 
-```text
+
 1. Network
 2. Data
 3. IAM
@@ -221,7 +220,6 @@ The workflow deploys the stacks in this order:
 8. Monitoring
 9. Reporting
 10. Dashboard
-```
 
 Wait for all jobs to complete successfully.
 
@@ -231,17 +229,17 @@ Wait for all jobs to complete successfully.
 
 The deployment automatically invokes the existing Product Lambda with:
 
-```json
+
 {
   "body": "{"action":"init_schema"}"
 }
-```
+
 
 This initializes the MySQL database using:
 
-```text
+
 database/schema.sql
-```
+
 
 No separate schema Lambda needs to be created manually.
 
@@ -257,19 +255,18 @@ In AWS:
 
 Check that the environment stacks show:
 
-```text
+
 CREATE_COMPLETE
-```
 
 or:
 
-```text
+
 UPDATE_COMPLETE
-```
+
 
 Expected stack names include:
 
-```text
+
 cloudmart-dev-network
 cloudmart-dev-data-newversion
 cloudmart-dev-iam
@@ -279,7 +276,7 @@ cloudmart-dev-rds-test
 cloudmart-dev-monitoring
 cloudmart-dev-report
 cloudmart-dev-dashboard
-```
+
 
 For production, replace `dev` with `prod`.
 
@@ -289,16 +286,16 @@ Open the API stack outputs and copy the API URL.
 
 Test:
 
-```text
+
 /products
-```
+
 
 and the order endpoints:
 
-```text
+
 /orders
 /orders/{id}
-```
+
 
 Use the required authentication token.
 
@@ -325,9 +322,9 @@ Confirm that the dashboard loads and displays the CloudMart information.
 
 Check the report S3 bucket for:
 
-```text
+
 reports/daily-report-YYYY-MM-DD.csv
-```
+
 
 ### Notifications
 
@@ -337,7 +334,7 @@ Confirm the configured alert email receives the CloudMart notification/monitorin
 
 ## 10. If Deployment Fails
 
-1. Open **GitHub → Actions**.
+1. Open **GitHub → Actions.
 2. Open the failed workflow.
 3. Open the failed job.
 4. Read the error message.
@@ -358,9 +355,9 @@ Before deploying production:
 2. Confirm the GitHub secrets are configured.
 3. Change:
 
-```yaml
+
 ENVIRONMENT: prod
-```
+
 
 4. Push the change.
 5. Run the GitHub Actions workflow.
