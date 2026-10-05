@@ -1,3 +1,0 @@
-# Lambda
-
-CloudMart Lambda functions.
