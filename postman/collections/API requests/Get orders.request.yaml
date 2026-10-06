@@ -1,0 +1,10 @@
+$kind: http-request
+description: ""
+url: https://gd0ow1g2wj.execute-api.ap-south-1.amazonaws.com/dev/orders?customerId=CUST001
+method: GET
+headers:
+  Authorization: "{{bearer_token_195p}}"
+  Customer-Id: CUST001
+queryParams:
+  customerId: CUST001
+order: 4451815353909944

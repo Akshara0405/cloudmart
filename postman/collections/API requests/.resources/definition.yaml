@@ -6,3 +6,9 @@ variables:
   - key: bearer_token_195p
     secret: true
     disabled: false
+  - key: bearer_token_1207
+    secret: true
+    disabled: false
+  - key: bearer_token_0std
+    secret: true
+    disabled: false

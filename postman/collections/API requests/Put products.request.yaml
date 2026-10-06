@@ -1,0 +1,16 @@
+$kind: http-request
+description: ""
+url: https://gd0ow1g2wj.execute-api.ap-south-1.amazonaws.com/dev/products/1
+method: PUT
+headers:
+  Authorization: "{{bearer_token_0std}}"
+body:
+  type: json
+  content: "{\r
+
+    \    \"stock_count\":10,\r
+
+    \    \"name\":\"Laptop\"\r
+
+    }"
+order: 4503493280718322

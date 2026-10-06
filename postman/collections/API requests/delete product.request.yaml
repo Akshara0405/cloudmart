@@ -1,0 +1,7 @@
+$kind: http-request
+description: ""
+url: https://gd0ow1g2wj.execute-api.ap-south-1.amazonaws.com/dev/products/1
+method: DELETE
+headers:
+  Authorization: "{{bearer_token_0std}}"
+order: 4503573449111047

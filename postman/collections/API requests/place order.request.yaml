@@ -1,6 +1,6 @@
 $kind: http-request
 description: ""
-url: https://kz7qku7jaj.execute-api.ap-south-1.amazonaws.com/dev/orders
+url: https://gd0ow1g2wj.execute-api.ap-south-1.amazonaws.com/dev/orders
 method: POST
 headers:
   Authorization: "{{bearer_token_195p}}"
@@ -9,15 +9,15 @@ body:
   type: json
   content: "{\r
 
-    \  \"customer_id\": \"CUST001\",\r
+    \ \r
 
     \  \"items\": [\r
 
     \    {\r
 
-    \      \"product_id\": 1,\r
+    \      \"product_id\": 2,\r
 
-    \      \"quantity\": 100\r
+    \      \"quantity\": 1\r
 
     \    }\r
 

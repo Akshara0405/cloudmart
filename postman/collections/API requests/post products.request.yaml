@@ -1,0 +1,24 @@
+$kind: http-request
+description: ""
+url: https://gd0ow1g2wj.execute-api.ap-south-1.amazonaws.com/dev/products
+method: POST
+headers:
+  Authorization: "{{bearer_token_0std}}"
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Wireless Mouse\",\r
+
+    \  \"description\": \"Ergonomic wireless mouse\",\r
+
+    \  \"price\": 799.00,\r
+
+    \  \"stock_count\": 20,\r
+
+    \  \"lowStockThreshold\": 5,\r
+
+    \  \"category\":\"electronics\"\r
+
+    }"
+order: 4503411036225959

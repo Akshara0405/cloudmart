@@ -1,6 +1,6 @@
 $kind: http-request
 description: ""
-url: https://kz7qku7jaj.execute-api.ap-south-1.amazonaws.com/dev/orders/9
+url: https://gd0ow1g2wj.execute-api.ap-south-1.amazonaws.com/dev/orders/3
 method: PATCH
 headers:
   Authorization: "{{bearer_token_195p}}"
@@ -9,9 +9,7 @@ body:
   type: json
   content: "{\r
 
-    \    \"status\": \"CANCELLED\",\r
-
-    \    \"customer_id\": \"CUST001\"\r
+    \    \"status\":\"Cancelled\"\r
 
     }"
 order: 2580670399355923

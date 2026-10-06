@@ -1123,8 +1123,6 @@
                                 <tr>
                                     <th>Customer</th>
                                     <th>Contact</th>
-                                    <th>Phone</th>
-                                    <th>Location</th>
                                     <th>Orders</th>
                                     <th>Total Spent</th>
                                 </tr>
@@ -1150,13 +1148,7 @@
                                             {{ customer.email }}
                                         </td>
 
-                                        <td>
-                                            {{ customer.phone or "—" }}
-                                        </td>
-
-                                        <td>
-                                            {{ customer.address or "—" }}
-                                        </td>
+                                        
 
                                         <td>
                                             {{ customer.order_count }}
